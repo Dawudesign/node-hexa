@@ -1,0 +1,36 @@
+{
+  "name": "@node-hexa/cli",
+  "version": "0.1.0",
+  "description": "CLI to scaffold and analyze NestJS Hexagonal DDD projects",
+  "keywords": ["nestjs", "hexagonal", "ddd", "architecture", "cli", "scaffold"],
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "node-hexa": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "pnpm build",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@node-hexa/core": "workspace:^",
+    "@node-hexa/parser": "workspace:^",
+    "commander": "^14.0.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0"
+  }
+}

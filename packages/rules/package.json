@@ -1,0 +1,32 @@
+{
+  "name": "@node-hexa/rules",
+  "version": "0.1.0",
+  "description": "Architecture violation rules for node-hexa",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "prepublishOnly": "pnpm build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@node-hexa/model": "workspace:^"
+  },
+  "devDependencies": {
+    "vitest": "*"
+  }
+}

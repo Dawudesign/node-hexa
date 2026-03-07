@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "paths": {
+      "@node-hexa/core": ["./packages/core/src/index.ts"],
+      "@node-hexa/model": ["./packages/model/src/index.ts"],
+      "@node-hexa/parser": ["./packages/parser/src/index.ts"]
+    },
+    "strict": true,
+    "declaration": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}

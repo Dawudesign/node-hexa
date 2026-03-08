@@ -76,6 +76,7 @@ node-hexa check .
 ```
 
 In under 2 minutes you have a running NestJS project with:
+
 - A `iam` bounded context (user entity, repository port, use case, in-memory repository, HTTP controller)
 - Full NestJS dependency injection wired
 - Architecture rules enforced
@@ -88,7 +89,7 @@ In under 2 minutes you have a running NestJS project with:
 
 Creates a new NestJS project with the complete Hexagonal DDD structure.
 
-```
+```text
 node-hexa init <name>
 ```
 
@@ -112,7 +113,7 @@ node-hexa init my-app
 
 **Generated structure**
 
-```
+```text
 my-app/
 ├── src/
 │   ├── main.ts
@@ -152,7 +153,7 @@ my-app/
 
 Generates a complete bounded context inside an existing NestJS project.
 
-```
+```text
 node-hexa generate context <name>
 ```
 
@@ -175,7 +176,7 @@ node-hexa generate context orders
 
 **Generated files in `src/contexts/orders/`**
 
-```
+```text
 orders/
 ├── orders.module.ts                         ← NestJS module, DI pre-wired
 ├── domain/
@@ -218,7 +219,7 @@ export class AppModule {}
 
 Generates a use case with its DTO and Vitest spec file inside an existing bounded context.
 
-```
+```text
 node-hexa generate usecase <name> <context>
 ```
 
@@ -238,7 +239,7 @@ node-hexa generate usecase delete-user iam
 
 **Generated files in `src/contexts/iam/application/use-cases/`**
 
-```
+```text
 delete-user.usecase.ts
 delete-user.dto.ts
 delete-user.usecase.spec.ts
@@ -277,7 +278,7 @@ export class DeleteUserUseCase {
 
 Generates a complete DDD aggregate inside an existing bounded context: entity, value object, repository port, use case with DTO and Vitest spec, in-memory repository, HTTP controller, and NestJS module.
 
-```
+```text
 node-hexa generate aggregate <name> <context>
 ```
 
@@ -298,7 +299,7 @@ node-hexa generate aggregate product catalog
 
 **Generated files in `src/contexts/catalog/`**
 
-```
+```text
 catalog/
 ├── product.module.ts
 ├── domain/
@@ -333,7 +334,7 @@ catalog/
 
 Checks that a project contains no architecture violations. Designed for CI/CD — exits `0` if clean, `1` if violations are found, `2` on error.
 
-```
+```text
 node-hexa check <path> [--watch]
 ```
 
@@ -361,13 +362,13 @@ node-hexa check . --watch
 
 **Output — clean project**
 
-```
+```text
 ✓ Architecture check passed
 ```
 
 **Output — violations detected**
 
-```
+```text
 ✗ Architecture violations detected
 
   [CRITICAL] Domain must not depend on infrastructure → UserEntity
@@ -388,7 +389,7 @@ node-hexa check . --watch
 
 Full architecture analysis: layers, violation report, bounded contexts, Mermaid diagram, and score.
 
-```
+```text
 node-hexa analyze <path>
 ```
 
@@ -400,7 +401,7 @@ node-hexa analyze .
 
 **Output**
 
-```
+```text
 Architecture Graph (Mermaid)
 
 flowchart LR
@@ -459,7 +460,7 @@ Score: 100/100
 
 Lists all bounded contexts and their components.
 
-```
+```text
 node-hexa list <path>
 ```
 
@@ -471,7 +472,7 @@ node-hexa list .
 
 **Output**
 
-```
+```text
 Bounded Contexts (2)
 
   IAM
@@ -492,7 +493,7 @@ Bounded Contexts (2)
 
 Generates an `architecture.md` file at the project root with the Mermaid diagram, component list, violations, and score.
 
-```
+```text
 node-hexa docs <path>
 ```
 
@@ -511,7 +512,7 @@ The generated file is ready to commit and renders natively on GitHub.
 
 Generates an `architecture.svg` file with the full dependency graph (requires `mmdc` from `@mermaid-js/mermaid-cli`).
 
-```
+```text
 node-hexa graph <path>
 ```
 
@@ -652,7 +653,7 @@ Then in CI:
 
 ### Project structure
 
-```
+```text
 node-hexa/
 ├── packages/
 │   ├── model/       ← @node-hexa/model   — TypeScript types (ArchitectureModel, Layer, …)

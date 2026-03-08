@@ -13,29 +13,19 @@ export function assertKebabCase(value: string, label: string): void {
 
 export function assertInsideProject(): void {
   const pkgPath = path.join(process.cwd(), "package.json");
+  const configPath = path.join(process.cwd(), "node-hexa.config.json");
+  const contextsPath = path.join(process.cwd(), "src", "contexts");
 
   if (!fs.existsSync(pkgPath)) {
     throw new Error(
-      "No package.json found. Run this command from the root of your NestJS project.",
+      "No package.json found. Run this command from the root of your project.",
     );
   }
 
-  let pkg: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
-  try {
-    pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
-      dependencies?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-    };
-  } catch {
+  if (!fs.existsSync(configPath) && !fs.existsSync(contextsPath)) {
     throw new Error(
-      "Could not parse package.json. Make sure it contains valid JSON.",
-    );
-  }
-
-  const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
-  if (!allDeps["@nestjs/core"]) {
-    throw new Error(
-      "@nestjs/core not found in dependencies. node-hexa only works with NestJS projects.",
+      "No node-hexa.config.json or src/contexts/ found.\n" +
+      "Run this command from the root of a node-hexa project, or run 'node-hexa init <name>' first.",
     );
   }
 }

@@ -24,6 +24,14 @@ const nodeGlobals = {
 export default [
   js.configs.recommended,
   {
+    files: ["**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: nodeGlobals,
+    },
+  },
+  {
     files: ["**/*.ts"],
     languageOptions: {
       parser: tsParser,

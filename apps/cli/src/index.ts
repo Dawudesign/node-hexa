@@ -1,6 +1,5 @@
-#!/usr/bin/env node
 import { Command } from "commander";
-import { checkLicense, activateLicense } from "./license.js";
+
 import {
   analyzeProject,
   generateMermaidGraph,
@@ -226,17 +225,5 @@ program
       handleError(err);
     }
   });
-
-program
-  .command("activate")
-  .description("Activate your node-hexa license")
-  .argument("<key>", "license key received after purchase")
-  .action((key: string) => {
-    activateLicense(key);
-  });
-
-// Skip license check for the activate command itself
-const isActivating = process.argv[2] === "activate";
-if (!isActivating) checkLicense();
 
 program.parse(process.argv);

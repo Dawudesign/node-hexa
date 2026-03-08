@@ -7,5 +7,5 @@
       "@node-hexa/model": ["../../packages/model/src"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "tsup.config.ts"]
 }

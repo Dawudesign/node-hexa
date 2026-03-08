@@ -9,10 +9,14 @@ let originalCwd: string;
 
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "node-hexa-test-"));
-  // Simulate a NestJS project root (required by assertInsideProject)
+  // Simulate a node-hexa project root (required by assertInsideProject)
   fs.writeFileSync(
     path.join(tmpDir, "package.json"),
     JSON.stringify({ name: "test-app", dependencies: { "@nestjs/core": "^10.0.0" } }),
+  );
+  fs.writeFileSync(
+    path.join(tmpDir, "node-hexa.config.json"),
+    JSON.stringify({ architecture: "hexagonal-ddd", strict: true, contextsDir: "src/contexts" }),
   );
   originalCwd = process.cwd();
   process.chdir(tmpDir);
@@ -79,10 +83,10 @@ describe("generateContext", () => {
     expect(() => generateContext("orders")).toThrowError(/already exists/);
   });
 
-  it("throws if not inside a NestJS project", () => {
-    // Overwrite package.json without @nestjs/core
-    fs.writeFileSync(path.join(tmpDir, "package.json"), JSON.stringify({ name: "not-nestjs" }));
-    expect(() => generateContext("orders")).toThrowError(/@nestjs\/core/);
+  it("throws if not inside a node-hexa project", () => {
+    // Remove both node-hexa markers so the guard triggers
+    fs.rmSync(path.join(tmpDir, "node-hexa.config.json"));
+    expect(() => generateContext("orders")).toThrowError(/node-hexa\.config\.json/);
   });
 });
 

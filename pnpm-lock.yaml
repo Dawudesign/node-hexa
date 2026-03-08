@@ -38,16 +38,22 @@ importers:
 
   apps/cli:
     dependencies:
+      commander:
+        specifier: ^14.0.3
+        version: 14.0.3
+      ts-morph:
+        specifier: ^27.0.2
+        version: 27.0.2
+    devDependencies:
       '@node-hexa/core':
         specifier: workspace:^
         version: link:../../packages/core
       '@node-hexa/parser':
         specifier: workspace:^
         version: link:../../packages/parser
-      commander:
-        specifier: ^14.0.3
-        version: 14.0.3
-    devDependencies:
+      '@types/node':
+        specifier: ^25.3.5
+        version: 25.3.5
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.8)(tsx@4.21.0)(typescript@5.9.3)

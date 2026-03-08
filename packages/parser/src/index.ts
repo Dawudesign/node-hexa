@@ -19,11 +19,22 @@ export type ParsedProject = {
 };
 
 export async function parseProject(rootPath: string): Promise<ParsedProject> {
-  const tsConfigFilePath = path.resolve(rootPath, "tsconfig.json");
+  const resolvedPath = path.resolve(rootPath);
 
-  if (!fs.existsSync(tsConfigFilePath)) {
+  // Walk up the directory tree to find the nearest tsconfig.json
+  function findTsConfig(dir: string): string | null {
+    const candidate = path.join(dir, "tsconfig.json");
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null; // reached filesystem root
+    return findTsConfig(parent);
+  }
+
+  const tsConfigFilePath = findTsConfig(resolvedPath);
+
+  if (!tsConfigFilePath) {
     throw new Error(
-      `No tsconfig.json found at "${tsConfigFilePath}".\n` +
+      `No tsconfig.json found at "${path.resolve(rootPath, "tsconfig.json")}".\n` +
         `Make sure you are pointing to a valid TypeScript project root.`,
     );
   }

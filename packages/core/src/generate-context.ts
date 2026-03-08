@@ -27,6 +27,9 @@ export function generateContext(name: string) {
     fs.mkdirSync(path.join(base, dir), { recursive: true });
   });
 
+  // Keep empty dirs tracked by git
+  fs.writeFileSync(path.join(base, "domain/value-objects/.gitkeep"), "");
+
   const pascal = capitalize(name);
   const token = `${name.toUpperCase().replaceAll('-', "_")}_REPOSITORY_PORT`;
 
@@ -61,6 +64,10 @@ import {
 } from '../../domain/ports/${name}.repository.port';
 import { randomUUID } from 'node:crypto';
 
+export interface Create${pascal}Dto {
+  id?: string;
+}
+
 @Injectable()
 export class Create${pascal}UseCase {
   constructor(
@@ -68,8 +75,8 @@ export class Create${pascal}UseCase {
     private readonly repository: ${pascal}RepositoryPort,
   ) {}
 
-  async execute(id?: string): Promise<${pascal}> {
-    const entity = new ${pascal}(id ?? randomUUID());
+  async execute(dto: Create${pascal}Dto = {}): Promise<${pascal}> {
+    const entity = new ${pascal}(dto.id ?? randomUUID());
     await this.repository.save(entity);
     return entity;
   }
@@ -79,16 +86,16 @@ export class Create${pascal}UseCase {
 
   fs.writeFileSync(
     path.join(base, "infrastructure/http", `${name}.controller.ts`),
-    `import { Controller, Post } from '@nestjs/common';
-import { Create${pascal}UseCase } from '../../application/use-cases/create-${name}.usecase';
+    `import { Body, Controller, Post } from '@nestjs/common';
+import { Create${pascal}UseCase, Create${pascal}Dto } from '../../application/use-cases/create-${name}.usecase';
 
 @Controller('${name}')
 export class ${pascal}Controller {
   constructor(private readonly create${pascal}: Create${pascal}UseCase) {}
 
   @Post()
-  async create() {
-    return this.create${pascal}.execute();
+  async create(@Body() dto: Create${pascal}Dto) {
+    return this.create${pascal}.execute(dto);
   }
 }
 `,

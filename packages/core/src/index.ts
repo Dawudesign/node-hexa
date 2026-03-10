@@ -1,6 +1,6 @@
 import { parseProject } from "@node-hexa/parser";
-import { loadConfig, type HexaConfig } from "./config";
-import { computeScore, runRules } from "@node-hexa/rules";
+import { loadConfig, validateConfig, type HexaConfig } from "./config";
+import { computeScore, runRules, runCleanCodeRules, runGreenCodeRules } from "@node-hexa/rules";
 import type { ArchitectureModel, Layer, ComponentKind } from "@node-hexa/model";
 import path from "node:path";
 
@@ -30,11 +30,17 @@ function detectLayer(filePath: string, config: HexaConfig): Layer {
   return "unknown";
 }
 
-function detectKind(name: string, decorators: string[]): ComponentKind {
-  if (decorators.includes("Controller")) return "controller";
-  if (decorators.includes("Injectable")) return "service";
-  if (decorators.includes("Module")) return "module";
+function kindFromLocation(filePath: string): ComponentKind {
+  const dir = filePath.toLowerCase().replaceAll("\\", "/").split("/").slice(0, -1).join("/");
+  if (dir.includes("/entities") || dir.endsWith("/entities")) return "entity";
+  if (dir.includes("/value-objects") || dir.endsWith("/value-objects")) return "value-object";
+  if (dir.includes("/use-cases") || dir.endsWith("/use-cases")) return "use-case";
+  if (dir.includes("/ports") || dir.endsWith("/ports")) return "port";
+  return "unknown";
+}
 
+function detectKind(name: string, decorators: string[], filePath: string): ComponentKind {
+  // Name-based detection is most specific — always takes priority over decorators
   if (name.endsWith("Controller")) return "controller";
   if (name.endsWith("UseCase")) return "use-case";
   if (name.endsWith("Repository")) return "repository";
@@ -42,6 +48,7 @@ function detectKind(name: string, decorators: string[]): ComponentKind {
   if (name.endsWith("Service")) return "service";
   if (name.endsWith("Port")) return "port";
   if (name.endsWith("Adapter")) return "adapter";
+  if (name.endsWith("Module")) return "module";
   if (
     name.endsWith("Vo") ||
     name.endsWith("ValueObject") ||
@@ -49,6 +56,20 @@ function detectKind(name: string, decorators: string[]): ComponentKind {
   )
     return "value-object";
 
+  // Decorator fallback (e.g. anonymous or unusual names)
+  if (decorators.includes("Controller")) return "controller";
+  if (decorators.includes("Module")) return "module";
+  if (decorators.includes("Injectable")) return "service";
+
+  // Location-based fallback: infer from directory conventions
+  return kindFromLocation(filePath);
+}
+
+function detectInterfaceKind(name: string, filePath: string): ComponentKind {
+  // An interface is a port if its name ends with Port OR it lives in a ports directory
+  if (name.endsWith("Port")) return "port";
+  const dir = filePath.toLowerCase().replaceAll("\\", "/").split("/").slice(0, -1).join("/");
+  if (dir.includes("/ports") || dir.endsWith("/ports")) return "port";
   return "unknown";
 }
 
@@ -62,34 +83,82 @@ export async function analyzeProject(projectPath: string) {
   const nodes = parsed.files
     .filter((file) => {
       const normalizedPath = path.normalize(file.path);
-      return normalizedPath.startsWith(contextsAbsDir + path.sep) || normalizedPath === contextsAbsDir;
+      // Exclude test files — they are not part of the production architecture
+      if (
+        normalizedPath.endsWith(".spec.ts") ||
+        normalizedPath.endsWith(".test.ts")
+      )
+        return false;
+      return (
+        normalizedPath.startsWith(contextsAbsDir + path.sep) ||
+        normalizedPath === contextsAbsDir
+      );
     })
-    .flatMap((file) => [
-      ...file.classes.map((cls) => ({
+    .flatMap((file) => {
+      const fileLayer = detectLayer(file.path, config);
+
+      const classNodes = file.classes.map((cls) => ({
         name: cls.name,
         filePath: file.path,
-        layer: detectLayer(file.path, config),
-        kind: detectKind(cls.name, cls.decorators),
+        layer: fileLayer,
+        kind: detectKind(cls.name, cls.decorators, file.path),
         imports: file.imports,
-      })),
-      ...file.interfaces.map((itf) => ({
+        metrics: {
+          lineCount: file.lineCount,
+          methodCount: cls.methodCount,
+          constructorParamCount: cls.constructorParamCount,
+        },
+      }));
+
+      const interfaceNodes = file.interfaces.map((itf) => ({
         name: itf,
         filePath: file.path,
-        layer: detectLayer(file.path, config),
-        kind: "port" as ComponentKind,
+        layer: fileLayer,
+        kind: detectInterfaceKind(itf, file.path),
         imports: file.imports,
-      })),
-    ]);
+        metrics: { lineCount: file.lineCount },
+      }));
+
+      const namedNodes = [...classNodes, ...interfaceNodes];
+
+      // If the file has no class or interface (e.g. pure type aliases, enums,
+      // constants), create a synthetic file-level node so its imports are
+      // still checked for layer violations.
+      if (namedNodes.length === 0) {
+        return [
+          {
+            name: path.basename(file.path, ".ts"),
+            filePath: file.path,
+            layer: fileLayer,
+            kind: "unknown" as ComponentKind,
+            imports: file.imports,
+            metrics: { lineCount: file.lineCount },
+          },
+        ];
+      }
+
+      return namedNodes;
+    });
 
   const model: ArchitectureModel = { nodes };
 
   const violations = runRules(model, config.strict);
   const score = computeScore(violations);
+  const cleanViolations = runCleanCodeRules(model);
+  const cleanScore = computeScore(cleanViolations);
+  const greenViolations = runGreenCodeRules(model);
+  const greenScore = computeScore(greenViolations);
+  const configIssues = validateConfig(projectPath);
 
   return {
     model,
     violations,
     score,
+    cleanViolations,
+    cleanScore,
+    greenViolations,
+    greenScore,
+    configIssues,
   };
 }
 
@@ -104,3 +173,6 @@ export { generateAggregate } from "./generate-aggregate";
 export { listContexts } from "./list";
 export type { ContextSummary } from "./list";
 export type { RuleViolation } from "@node-hexa/rules";
+export { runCleanCodeRules, runGreenCodeRules } from "@node-hexa/rules";
+export { validateConfig } from "./config";
+export type { ConfigIssue, ConfigIssueSeverity } from "./config";

@@ -1,6 +1,6 @@
 {
   "name": "@node-hexa/rules",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Architecture violation rules for node-hexa",
   "license": "MIT",
   "type": "module",

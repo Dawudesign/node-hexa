@@ -1,6 +1,6 @@
 {
   "name": "@node-hexa/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Core generators and analyzer for node-hexa",
   "license": "MIT",
   "type": "module",

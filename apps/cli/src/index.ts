@@ -12,7 +12,7 @@ import {
   generateAggregate,
   listContexts,
 } from "@node-hexa/core";
-import type { RuleViolation } from "@node-hexa/core";
+import type { RuleViolation, ConfigIssue } from "@node-hexa/core";
 import type { ArchitectureNode } from "@node-hexa/model";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -34,14 +34,31 @@ function printLayers(nodes: ArchitectureNode[]) {
   }
 }
 
-function printViolations(violations: RuleViolation[]) {
-  console.log("Violations\n");
+function printViolations(violations: RuleViolation[], title = "Violations") {
+  console.log(`${title}\n`);
   if (!violations.length) {
-    console.log("  ✓ No architecture violations found\n");
+    console.log(`  ✓ No ${title.toLowerCase()} found\n`);
     return;
   }
   for (const v of violations) {
     console.log(`  ✗ [${severityBadge(v.severity)}] ${v.message} → ${v.node}`);
+    console.log(`       File: ${v.filePath}`);
+    if (v.suggestion) {
+      console.log(`       Fix:  ${v.suggestion}`);
+    }
+    console.log("");
+  }
+}
+
+function printConfigIssues(issues: ConfigIssue[]) {
+  if (!issues.length) return;
+  console.log("Configuration Issues\n");
+  for (const issue of issues) {
+    const icon = issue.severity === "error" ? "✗" : "⚠";
+    console.log(`  ${icon} [${issue.severity.toUpperCase()}] ${issue.message}`);
+    console.log(`       Field: ${issue.field}`);
+    console.log(`       Fix:   ${issue.suggestion}`);
+    console.log("");
   }
 }
 
@@ -71,7 +88,7 @@ const program = new Command();
 program
   .name("node-hexa")
   .description("Architecture analyzer and scaffolder for NestJS Hexagonal DDD")
-  .version(process.env["npm_package_version"] ?? "0.1.0");
+  .version(process.env["npm_package_version"] ?? "0.4.0");
 
 program
   .command("analyze")
@@ -83,10 +100,19 @@ program
       console.log("\nArchitecture Graph (Mermaid)\n");
       console.log(generateMermaidGraph(result.model));
       printLayers(result.model.nodes);
-      printViolations(result.violations);
+      printViolations(result.violations, "Architecture Violations");
       printContexts(result.model.nodes);
       console.log("\nArchitecture Score\n");
       console.log(`Score: ${result.score.score}/${result.score.max}\n`);
+      console.log("\n───\n");
+      printViolations(result.cleanViolations, "Clean Code Violations");
+      console.log("Clean Code Score\n");
+      console.log(`Score: ${result.cleanScore.score}/${result.cleanScore.max}\n`);
+      console.log("\n───\n");
+      printViolations(result.greenViolations, "Green Code Violations (Eco-Design)");
+      console.log("Green Code Score\n");
+      console.log(`Score: ${result.greenScore.score}/${result.greenScore.max}\n`);
+      printConfigIssues(result.configIssues);
     } catch (err) {
       handleError(err);
     }
@@ -166,16 +192,58 @@ program
       if (options.watch) process.stdout.write("\x1Bc");
       const result = await analyzeProject(projectPath);
 
-      if (!result.violations.length) {
-        console.log("✓ Architecture check passed");
+      // Config errors are blocking — a misconfigured project cannot be trusted
+      const configErrors = result.configIssues.filter((i) => i.severity === "error");
+      if (configErrors.length) {
+        console.log("\u2717 Configuration errors detected — fix them before running check\n");
+        printConfigIssues(result.configIssues);
+        return false;
+      }
+
+      // Show config warnings non-blocking
+      if (result.configIssues.length) printConfigIssues(result.configIssues);
+
+      if (!result.violations.length && !result.cleanViolations.length && !result.greenViolations.length) {
+        console.log("✓ All checks passed (architecture, clean code, green code)");
         return true;
       }
 
-      console.log("✗ Architecture violations detected\n");
-      result.violations.forEach((v) =>
-        console.log(`  [${severityBadge(v.severity)}] ${v.message} → ${v.node}`),
-      );
-      return false;
+      let passed = true;
+
+      if (result.violations.length) {
+        passed = false;
+        console.log("✗ Architecture violations detected\n");
+        for (const v of result.violations) {
+          console.log(`  [${severityBadge(v.severity)}] ${v.message} → ${v.node}`);
+          console.log(`       File: ${v.filePath}`);
+          if (v.suggestion) console.log(`       Fix:  ${v.suggestion}`);
+          console.log("");
+        }
+      }
+
+      if (result.cleanViolations.length) {
+        passed = false;
+        console.log("✗ Clean code violations detected\n");
+        for (const v of result.cleanViolations) {
+          console.log(`  [${severityBadge(v.severity)}] ${v.message} → ${v.node}`);
+          console.log(`       File: ${v.filePath}`);
+          if (v.suggestion) console.log(`       Fix:  ${v.suggestion}`);
+          console.log("");
+        }
+      }
+
+      if (result.greenViolations.length) {
+        passed = false;
+        console.log("❗ Green code violations detected\n");
+        for (const v of result.greenViolations) {
+          console.log(`  [${severityBadge(v.severity)}] ${v.message} → ${v.node}`);
+          console.log(`       File: ${v.filePath}`);
+          if (v.suggestion) console.log(`       Fix:  ${v.suggestion}`);
+          console.log("");
+        }
+      }
+
+      return passed;
     };
 
     try {

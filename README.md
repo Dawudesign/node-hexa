@@ -5,7 +5,8 @@
 **node-hexa** automates the repetitive parts of clean architecture in NestJS:
 
 - **Scaffold** — generates a full bounded context (entities, ports, use cases, repositories, controllers, NestJS modules) with dependency injection pre-wired, in one command
-- **Enforce** — statically analyzes your TypeScript source and reports architecture violations (domain leaking into infrastructure, application bypassing ports, framework imports in domain, etc.)
+- **Enforce** — statically analyzes your TypeScript source and reports architecture violations (domain leaking into infrastructure, application bypassing ports, framework imports in domain, cross-context coupling, misplaced components, etc.)
+- **Measure** — checks Clean Code metrics (constructor complexity, method count, file size) and Green Code / eco-design guidelines (memory pressure, cold-start cost, tree-shaking)
 - **Document** — exports a Mermaid diagram and architecture report as Markdown or SVG
 
 ---
@@ -26,7 +27,10 @@
   - [docs](#docs)
   - [graph](#graph)
 - [Architecture model](#architecture-model)
-- [Violation rules](#violation-rules)
+- [Architecture rules](#architecture-rules)
+- [Clean Code rules](#clean-code-rules)
+- [Green Code rules](#green-code-rules)
+- [Config validation](#config-validation)
 - [Configuration](#configuration)
 - [CI/CD integration](#cicd-integration)
 - [Development](#development)
@@ -43,13 +47,13 @@
 ## Installation
 
 ```bash
-npm install -g @node-hexa/cli
+npm install -g @dawudesign/node-hexa-cli
 ```
 
 Verify:
 
 ```bash
-node-hexa --version   # 0.1.0
+node-hexa --version   # 0.4.0
 node-hexa --help
 ```
 
@@ -70,16 +74,16 @@ curl -X POST http://localhost:3000/users \
   -H "Content-Type: application/json" \
   -d '{"email": "alice@example.com", "name": "Alice"}'
 
-# 4. Verify architecture is clean
+# 4. Verify architecture, clean code, and green code are all clean
 node-hexa check .
-# ✓ Architecture check passed
+# ✓ All checks passed (architecture, clean code, green code)
 ```
 
 In under 2 minutes you have a running NestJS project with:
 
 - A `iam` bounded context (user entity, repository port, use case, in-memory repository, HTTP controller)
 - Full NestJS dependency injection wired
-- Architecture rules enforced
+- Architecture, clean code and eco-design rules enforced
 
 ---
 
@@ -332,7 +336,7 @@ catalog/
 
 ### check
 
-Checks that a project contains no architecture violations. Designed for CI/CD — exits `0` if clean, `1` if violations are found, `2` on error.
+Checks that a project contains no architecture, clean code, or green code violations. Designed for CI/CD — exits `0` if all checks pass, `1` if violations are found, `2` on configuration or project errors.
 
 ```text
 node-hexa check <path> [--watch]
@@ -360,34 +364,49 @@ node-hexa check .
 node-hexa check . --watch
 ```
 
-**Output — clean project**
+**Output — all checks passed**
 
 ```text
-✓ Architecture check passed
+✓ All checks passed (architecture, clean code, green code)
 ```
 
 **Output — violations detected**
 
 ```text
-✗ Architecture violations detected
+✗ Architecture violations (2)
 
   [CRITICAL] Domain must not depend on infrastructure → UserEntity
-  [HIGH] Application must not depend on infrastructure → CreateUserUseCase
+    File: src/contexts/iam/domain/entities/user.entity.ts
+    Fix:  Extract the infrastructure dependency behind a domain port interface.
+
+  [HIGH] Application must not import infrastructure directly → CreateUserUseCase
+    File: src/contexts/iam/application/use-cases/create-user.usecase.ts
+    Fix:  Inject the repository through the domain port, not the concrete class.
+
+Architecture Score: 50/100
+
+✗ Clean Code violations (1)
+
+  [HIGH] Constructor has too many parameters (6 > 4) → OrderService
+    File: src/contexts/orders/application/order.service.ts
+    Fix:  Extract related parameters into a dedicated options object or command DTO.
+
+Clean Code Score: 90/100
 ```
 
 **Exit codes**
 
 | Code | Meaning |
 |---|---|
-| `0` | No violations |
-| `1` | Violations detected |
-| `2` | Error (project not found, invalid tsconfig, etc.) |
+| `0` | No violations in any category |
+| `1` | Violations detected (architecture, clean code, or green code) |
+| `2` | Error (config validation failed, project not found, invalid tsconfig) |
 
 ---
 
 ### analyze
 
-Full architecture analysis: layers, violation report, bounded contexts, Mermaid diagram, and score.
+Full analysis report: Mermaid graph, layer breakdown, architecture violations, clean code violations, green code violations, bounded contexts, and config issues.
 
 ```text
 node-hexa analyze <path>
@@ -424,34 +443,38 @@ subgraph AdapterOut["Adapter Out (Persistence)"]
 end
 
 DOMAIN
-  ✓ User (unknown)
+  ✓ User (entity)
   ✓ UserRepositoryPort (port)
 
 APPLICATION
-  ✓ CreateUserUseCase (service)
+  ✓ CreateUserUseCase (use-case)
 
 ADAPTER-IN
   ✓ UserController (controller)
 
 ADAPTER-OUT
-  ✓ InMemoryUserRepository (service)
+  ✓ InMemoryUserRepository (repository)
 
-Violations
-
+── Architecture ─────────────────────────────────────
   ✓ No architecture violations found
+Architecture Score: 100/100
+
+── Clean Code ─────────────────────────────────────
+  ✓ No clean code violations found
+Clean Code Score: 100/100
+
+── Green Code ─────────────────────────────────────
+  ✓ No green code violations found
+Green Code Score: 100/100
 
 Bounded Contexts
 
 IAM
-  - User (unknown)
+  - User (entity)
   - UserRepositoryPort (port)
-  - CreateUserUseCase (service)
+  - CreateUserUseCase (use-case)
   - UserController (controller)
-  - InMemoryUserRepository (service)
-
-Architecture Score
-
-Score: 100/100
+  - InMemoryUserRepository (repository)
 ```
 
 ---
@@ -532,33 +555,161 @@ node-hexa understands 5 layers:
 
 | Layer | Match keywords | Role |
 |---|---|---|
-| `domain` | `domain/` directory | Pure business logic — no dependencies |
+| `domain` | `domain/` directory | Pure business logic — no external dependencies |
 | `application` | `application/` directory | Orchestrates domain via ports |
-| `adapter-in` | `http/` or `controller/` directory | Entry points (HTTP, events) |
-| `adapter-out` | `persistence/` or `repository/` directory | Output adapters (database, cache) |
-| `infrastructure` | `infrastructure/` directory | Everything else technical |
+| `adapter-in` | `http/` or `controller/` directory | Entry points (HTTP, events, CLI) |
+| `adapter-out` | `persistence/` or `repository/` directory | Output adapters (database, cache, external APIs) |
+| `infrastructure` | `infrastructure/` directory | Cross-cutting technical concerns |
 
 Layer detection uses the **directory path**, not the filename — so `user.repository.port.ts` inside `domain/ports/` is correctly classified as `domain`, not `adapter-out`.
 
-Bounded contexts are detected by reading the directory immediately above `domain/`, `application/`, or `infrastructure/` inside `src/contexts/`.
+Component kind is detected in priority order:
+
+1. **Name pattern** — file/class name contains `UseCase`, `Entity`, `Repository`, `Controller`, `Port`, `Vo`/`ValueObject`/`Value-Object`, `Module`
+2. **Decorator** — `@Injectable()`, `@Controller()`, `@Module()`
+3. **Location** — directory is `/entities/`, `/value-objects/`, `/use-cases/`, `/ports/`
+
+Bounded contexts are detected by reading the directory immediately above `domain/`, `application/`, or `infrastructure/` inside `contextsDir` (`src/contexts/` by default).
 
 ---
 
-## Violation rules
+## Architecture rules
 
-Three rules are enforced, each with a severity and score penalty:
+All violations include a **suggestion** (`Fix:`) explaining how to resolve the issue.
 
-| Violation | Severity | Penalty |
+### Layer violation rules
+
+| Violation | Severity | Score penalty |
 |---|---|---|
 | Domain imports from infrastructure, adapter-in, or adapter-out | `CRITICAL` | −25 pts |
 | Domain imports from application | `CRITICAL` | −25 pts |
 | Application imports from infrastructure, adapter-in, or adapter-out | `HIGH` | −15 pts |
-| Domain imports a framework (`@nestjs/*`, `express`, `prisma`, `mongoose`, `typeorm`) | `CRITICAL` | −25 pts |
+
+### Framework pollution rules
+
+| Violation | Severity | Score penalty |
+|---|---|---|
+| Domain imports a framework (`@nestjs/*`, `express`, `prisma`, `mongoose`, `typeorm`, `mikro-orm`, `sequelize`) | `CRITICAL` | −25 pts |
+| Application imports an ORM (`prisma`, `mongoose`, `typeorm`, `mikro-orm`, `sequelize`) | `HIGH` | −15 pts |
+
+### Misplacement rules
+
+These rules catch components placed in the wrong layer:
+
+| Violation | Severity | Score penalty |
+|---|---|---|
+| Entity or Value Object not in `domain/` | `HIGH` | −15 pts |
+| Port (interface) not in `domain/` | `HIGH` | −15 pts |
+| Use case not in `application/` | `HIGH` | −15 pts |
+| Controller found in `domain/` or `application/` | `CRITICAL` | −25 pts |
+| Repository implementation in `domain/` | `CRITICAL` | −25 pts |
+| NestJS module in `domain/` or `application/` | `HIGH` | −15 pts |
+
+### Cross-context isolation rules
+
+Each bounded context must be self-contained. Direct imports between contexts are forbidden unless the target is a **domain port** interface (which acts as the published API of the context).
+
+| Violation | Severity | Score penalty |
+|---|---|---|
+| Component imports directly from another bounded context's non-port code | `HIGH` | −15 pts |
+
+**Example violation:**
+
+```text
+[HIGH] Cross-context import: 'orders' imports from 'iam' → CreateOrderUseCase
+  File: src/contexts/orders/application/use-cases/create-order.usecase.ts
+  Fix:  Only import domain ports from other contexts. Use an anti-corruption layer or shared kernel for cross-context communication.
+```
+
+**Allowed cross-context pattern:**
+
+```typescript
+// ✓ OK — importing a port (published interface) from another context
+import { UserRepositoryPort } from '../../iam/domain/ports/user.repository.port';
+
+// ✗ Forbidden — importing a concrete implementation from another context
+import { InMemoryUserRepository } from '../../iam/infrastructure/persistence/in-memory-user.repository';
+```
 
 Score = `100 − sum of penalties`, minimum 0.
 
 **Strict mode** (`strict: true`, default) — all violations are reported.  
 **Non-strict mode** (`strict: false`) — `MEDIUM` violations are filtered out (useful for legacy codebases during migration).
+
+---
+
+## Clean Code rules
+
+These rules measure structural code quality. Violations are reported separately from architecture violations with their own score.
+
+| Rule | Threshold | Severity | Score penalty |
+|---|---|---|---|
+| Constructor has too many parameters | > 4 params | `HIGH` | −15 pts |
+| Class has too many methods | > 10 methods | `MEDIUM` | −10 pts |
+| File has too many imports | > 10 imports | `MEDIUM` | −10 pts |
+| Domain / application file too long | > 200 lines | `MEDIUM` | −10 pts |
+| Infrastructure file too long | > 300 lines | `MEDIUM` | −10 pts |
+
+**Example violations:**
+
+```text
+[HIGH] Constructor has too many parameters (6 > 4) → OrderService
+  Fix:  Extract related parameters into a dedicated options object or command DTO.
+
+[MEDIUM] Class has too many methods (14 > 10) → UserController
+  Fix:  Split the class into smaller, focused controllers or use a router pattern.
+
+[MEDIUM] File has too many imports (12 > 10) → CreateOrderUseCase
+  Fix:  Consider grouping related imports via barrel exports or splitting the file.
+```
+
+---
+
+## Green Code rules
+
+These rules apply **eco-design** guidelines to minimize runtime resource consumption. They target memory pressure (GC), cold-start time (module loading), and bundle size (tree-shaking).
+
+| Rule | Threshold | Severity | Why it matters |
+|---|---|---|---|
+| File has too many lines | > 300 lines | `MEDIUM` | Large files increase GC pressure during module loading |
+| File has too many imports | > 15 imports | `MEDIUM` | Each import adds cold-start cost; reduce coupling |
+| Too many classes per file | > 2 classes | `MEDIUM` | Bundlers cannot tree-shake unused exports from dense files |
+
+**Example violations:**
+
+```text
+[MEDIUM] File is too long (350 lines > 300) → user.repository.ts
+  Fix:  Split this file into smaller modules to reduce GC pressure during module loading.
+
+[MEDIUM] Too many classes in one file (3 > 2) → order.module.ts
+  Fix:  One class per file improves tree-shaking and readability.
+```
+
+---
+
+## Config validation
+
+`node-hexa check` validates `node-hexa.config.json` before running any rules. Configuration errors cause the command to exit `2` immediately.
+
+| Check | What it verifies |
+|---|---|
+| `contextsDir` exists | The configured bounded contexts directory exists on disk |
+| Layer keywords not empty | Each layer must have at least one detection keyword |
+| No keyword overlap | The same keyword cannot match two different layers |
+
+**Example config error output:**
+
+```text
+✗ Config issues detected — fix before running checks
+
+  [ERROR] contextsDir 'src/contexts' does not exist.
+    Field: contextsDir
+    Fix:   Create the directory or update 'contextsDir' in node-hexa.config.json.
+
+  [WARNING] Layer keyword 'domain' appears in both 'domain' and 'application'.
+    Field: layers
+    Fix:   Ensure each keyword maps to exactly one layer.
+```
 
 ---
 
@@ -602,14 +753,14 @@ Only list the keys you want to override — unlisted keys keep their defaults.
 
 ## CI/CD integration
 
-Add `node-hexa check` as a step in your pipeline. It exits `1` on violations — which makes the build fail.
+Add `node-hexa check` as a step in your pipeline. It exits `1` on violations and `2` on config errors — both fail the build.
 
 **GitHub Actions**
 
 ```yaml
 # .github/workflows/ci.yml
-- name: Architecture check
-  run: npx @node-hexa/cli check .
+- name: Architecture + quality check
+  run: npx @dawudesign/node-hexa-cli check .
 ```
 
 Or if installed as a dev dependency:
@@ -618,7 +769,7 @@ Or if installed as a dev dependency:
 - name: Install dependencies
   run: npm ci
 
-- name: Architecture check
+- name: Architecture + quality check
   run: npx node-hexa check .
 ```
 
@@ -643,9 +794,9 @@ Then in CI:
 
 | Code | Meaning | CI result |
 |---|---|---|
-| `0` | Clean — no violations | ✓ Pass |
+| `0` | All checks passed (architecture + clean code + green code) | ✓ Pass |
 | `1` | Violations detected | ✗ Fail |
-| `2` | Error (missing tsconfig, invalid project) | ✗ Fail |
+| `2` | Error (config invalid, missing tsconfig, project not found) | ✗ Fail |
 
 ---
 
@@ -656,12 +807,12 @@ Then in CI:
 ```text
 node-hexa/
 ├── packages/
-│   ├── model/       ← @node-hexa/model   — TypeScript types (ArchitectureModel, Layer, …)
-│   ├── parser/      ← @node-hexa/parser  — ts-morph static analysis
-│   ├── rules/       ← @node-hexa/rules   — architecture violation rules + scoring
-│   └── core/        ← @node-hexa/core    — generators, analyzer, config loader
+│   ├── model/       ← @node-hexa/model   — TypeScript types (ArchitectureModel, Layer, NodeMetrics, …)
+│   ├── parser/      ← @node-hexa/parser  — ts-morph static analysis (parses classes, methods, metrics)
+│   ├── rules/       ← @node-hexa/rules   — rule engines (architecture, clean code, green code)
+│   └── core/        ← @node-hexa/core    — generators, analyzer, config loader + validator
 ├── apps/
-│   └── cli/         ← @node-hexa/cli     — commander CLI entry point
+│   └── cli/         ← @dawudesign/node-hexa-cli — commander CLI entry point
 ├── fixtures/
 │   └── test-app/    ← reference NestJS Hexagonal DDD project used in CI
 └── node-hexa.config.json
@@ -671,15 +822,15 @@ node-hexa/
 
 ```bash
 pnpm install
-pnpm build        # builds all packages in dependency order
+pnpm -r build        # builds all packages in dependency order
 ```
 
 ### Tests
 
 ```bash
-pnpm test                        # all packages
-pnpm -F @node-hexa/rules test    # unit tests — violation rules
-pnpm -F @node-hexa/core test     # integration tests — file generation
+pnpm -r test                       # all packages (59 tests)
+pnpm -F @node-hexa/rules test      # unit tests — violation rules
+pnpm -F @node-hexa/core test       # integration tests — file generation
 ```
 
 Tests use [Vitest](https://vitest.dev/). Integration tests create real files in OS temp directories and clean up after themselves.
@@ -694,8 +845,9 @@ pnpm lint:fix     # auto-fix
 ### Local CLI development
 
 ```bash
-pnpm build
+pnpm -r build
 node apps/cli/dist/index.js --help
+node apps/cli/dist/index.js analyze fixtures/test-app
 node apps/cli/dist/index.js check fixtures/test-app
 ```
 

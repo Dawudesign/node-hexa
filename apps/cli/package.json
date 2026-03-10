@@ -1,6 +1,6 @@
 {
   "name": "@dawudesign/node-hexa-cli",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "CLI to scaffold and analyze NestJS Hexagonal DDD projects",
   "keywords": [
     "nestjs",

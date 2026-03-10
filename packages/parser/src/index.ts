@@ -5,6 +5,10 @@ import path from "node:path";
 export type ParsedClass = {
   name: string;
   decorators: string[];
+  /** Number of methods defined in the class body (excluding constructor). */
+  methodCount: number;
+  /** Number of parameters in the primary constructor. */
+  constructorParamCount: number;
 };
 
 export type ParsedFile = {
@@ -12,6 +16,8 @@ export type ParsedFile = {
   imports: string[];
   classes: ParsedClass[];
   interfaces: string[];
+  /** Total number of lines in the source file. */
+  lineCount: number;
 };
 
 export type ParsedProject = {
@@ -49,6 +55,9 @@ export async function parseProject(rootPath: string): Promise<ParsedProject> {
     const classes = file.getClasses().map((cls) => ({
       name: cls.getName() || "AnonymousClass",
       decorators: cls.getDecorators().map((d) => d.getName()),
+      methodCount: cls.getMethods().length,
+      constructorParamCount:
+        cls.getConstructors()[0]?.getParameters().length ?? 0,
     }));
 
     const interfaces = file.getInterfaces().map((i) => i.getName());
@@ -58,6 +67,7 @@ export async function parseProject(rootPath: string): Promise<ParsedProject> {
       imports,
       classes,
       interfaces,
+      lineCount: file.getEndLineNumber(),
     };
   });
 

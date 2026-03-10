@@ -228,6 +228,27 @@ describe("checkMisplacement", () => {
     expect(v?.suggestion).toBeDefined();
     expect(v?.suggestion?.length).toBeGreaterThan(0);
   });
+
+  it("flags repository with kind=unknown when placed in domain/persistence/ directory", () => {
+    // A class not named *Repository but placed in a persistence/ folder under domain
+    const model: ArchitectureModel = {
+      nodes: [
+        makeTypedNode("UserDataAccess", "domain", "unknown", "src/contexts/iam/domain/persistence/user.data-access.ts"),
+      ],
+    };
+    const violations = runRules(model);
+    expect(violations.some((v) => v.message.includes("Repository implementation must not live in domain layer"))).toBe(true);
+  });
+
+  it("does not flag kind=unknown node whose path gives no location hint", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeTypedNode("SomeHelper", "domain", "unknown", "src/contexts/iam/domain/helpers/some.helper.ts"),
+      ],
+    };
+    const violations = runRules(model);
+    expect(violations.filter((v) => v.message.includes("must live in") || v.message.includes("must not live in"))).toHaveLength(0);
+  });
 });
 
 // ─── checkCrossContextImport ──────────────────────────────────────────────────

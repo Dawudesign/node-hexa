@@ -3,6 +3,7 @@ import { loadConfig, validateConfig, type HexaConfig } from "./config";
 import { computeScore, runRules, runCleanCodeRules, runGreenCodeRules } from "@node-hexa/rules";
 import type { ArchitectureModel, Layer, ComponentKind } from "@node-hexa/model";
 import path from "node:path";
+import fs from "node:fs";
 
 function detectLayer(filePath: string, config: HexaConfig): Layer {
   const normalized = filePath.toLowerCase().replaceAll("\\", "/");
@@ -78,7 +79,13 @@ export async function analyzeProject(projectPath: string) {
 
   const config = loadConfig(projectPath);
 
-  const contextsAbsDir = path.resolve(projectPath, config.contextsDir);
+  // If the configured contextsDir doesn't exist at the given project root, the
+  // user likely passed the contexts directory itself as the project path.
+  // Fall back to using the project path directly as the analysis root.
+  const configuredContextsDir = path.resolve(projectPath, config.contextsDir);
+  const contextsAbsDir = fs.existsSync(configuredContextsDir)
+    ? configuredContextsDir
+    : path.resolve(projectPath);
 
   const nodes = parsed.files
     .filter((file) => {

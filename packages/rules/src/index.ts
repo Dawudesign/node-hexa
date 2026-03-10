@@ -35,7 +35,8 @@ function findNodeByImport(
   const resolvedImport = path.resolve(sourceDir, importNoExt).toLowerCase();
 
   return nodes.find((n) => {
-    const nodePathNoExt = path.resolve(n.filePath)
+    const nodePathNoExt = path
+      .resolve(n.filePath)
       .replace(/\.(ts|tsx|d\.ts)$/, "")
       .toLowerCase();
 
@@ -118,7 +119,13 @@ function checkFrameworkViolations(
   node: ArchitectureNode,
   violations: RuleViolation[],
 ): void {
-  const ormFrameworks = ["prisma", "mongoose", "typeorm", "mikro-orm", "sequelize"];
+  const ormFrameworks = [
+    "prisma",
+    "mongoose",
+    "typeorm",
+    "mikro-orm",
+    "sequelize",
+  ];
 
   // Domain layer: forbid ALL framework imports (including NestJS)
   if (node.layer === "domain") {
@@ -159,27 +166,45 @@ function checkFrameworkViolations(
 
 // ─── Component misplacement rules ─────────────────────────────────────────────
 
+/**
+ * Infer component kind purely from directory name conventions.
+ * Used as a fallback when name-based and decorator-based detection returns "unknown".
+ */
+function kindFromPath(filePath: string): import("@node-hexa/model").ComponentKind {
+  const dir = filePath.replaceAll("\\", "/").toLowerCase();
+  if (dir.includes("/entities/") || dir.includes("/entities")) return "entity";
+  if (dir.includes("/value-objects/") || dir.includes("/value-objects")) return "value-object";
+  if (dir.includes("/use-cases/") || dir.includes("/use-cases")) return "use-case";
+  if (dir.includes("/ports/") || dir.includes("/ports")) return "port";
+  if (dir.includes("/persistence/") || dir.includes("/repository/") || dir.includes("/repositories/")) return "repository";
+  if (dir.includes("/http/") || dir.includes("/controllers/") || dir.includes("/rest/") || dir.includes("/graphql/")) return "controller";
+  return "unknown";
+}
+
 function checkMisplacement(
   node: ArchitectureNode,
   violations: RuleViolation[],
 ): void {
   const { kind, layer, name, filePath } = node;
 
-  // Nodes with undetermined kind skip misplacement checks
-  if (kind === "unknown") return;
+  // Effective kind: if detection was inconclusive, use directory path as a hint
+  const effectiveKind = kind === "unknown" ? kindFromPath(filePath) : kind;
 
-  if ((kind === "entity" || kind === "value-object") && layer !== "domain") {
+  // Nodes with truly undetermined kind skip misplacement checks
+  if (effectiveKind === "unknown") return;
+
+  if ((effectiveKind === "entity" || effectiveKind === "value-object") && layer !== "domain") {
     violations.push({
-      message: `${kind === "entity" ? "Entity" : "Value object"} must live in domain layer`,
+      message: `${effectiveKind === "entity" ? "Entity" : "Value object"} must live in domain layer`,
       node: name,
       filePath,
       severity: "critical",
-      suggestion: `Move to contexts/<ctx>/domain/${kind === "entity" ? "entities" : "value-objects"}/ — these are core domain concepts and must stay framework-free`,
+      suggestion: `Move to contexts/<ctx>/domain/${effectiveKind === "entity" ? "entities" : "value-objects"}/ — these are core domain concepts and must stay framework-free`,
     });
     return;
   }
 
-  if (kind === "port" && layer !== "domain") {
+  if (effectiveKind === "port" && layer !== "domain") {
     violations.push({
       message: "Port (interface) must live in domain layer",
       node: name,
@@ -191,7 +216,7 @@ function checkMisplacement(
     return;
   }
 
-  if (kind === "use-case" && layer !== "application") {
+  if (effectiveKind === "use-case" && layer !== "application") {
     violations.push({
       message: "UseCase must live in application layer",
       node: name,
@@ -203,21 +228,25 @@ function checkMisplacement(
     return;
   }
 
-  if (kind === "controller" && (layer === "domain" || layer === "application")) {
+  if (
+    effectiveKind === "controller" &&
+    (layer === "domain" || layer === "application")
+  ) {
     violations.push({
       message: `Controller must not live in ${layer} layer`,
       node: name,
       filePath,
-      severity: kind === "controller" && layer === "domain" ? "critical" : "high",
+      severity: layer === "domain" ? "critical" : "high",
       suggestion:
         "Move to contexts/<ctx>/infrastructure/http/ (adapter-in) — controllers are an HTTP-layer concern, not business logic",
     });
     return;
   }
 
-  if (kind === "repository" && layer === "domain") {
+  if (effectiveKind === "repository" && layer === "domain") {
     violations.push({
-      message: "Repository implementation must not live in domain layer — extract a port",
+      message:
+        "Repository implementation must not live in domain layer — extract a port",
       node: name,
       filePath,
       severity: "critical",
@@ -227,9 +256,10 @@ function checkMisplacement(
     return;
   }
 
-  if (kind === "module" && (layer === "domain" || layer === "application")) {
+  if (effectiveKind === "module" && (layer === "domain" || layer === "application")) {
     violations.push({
-      message: "NestJS Module (composition root) must not live in domain or application layer",
+      message:
+        "NestJS Module (composition root) must not live in domain or application layer",
       node: name,
       filePath,
       severity: "high",
@@ -258,8 +288,7 @@ function checkCrossContextImport(
       node: node.name,
       filePath: node.filePath,
       severity: "high",
-      suggestion:
-        `Define a shared port or anti-corruption layer — bounded contexts must communicate via abstractions (ports), not by importing each other's internals`,
+      suggestion: `Define a shared port or anti-corruption layer — bounded contexts must communicate via abstractions (ports), not by importing each other's internals`,
     });
   }
 }
@@ -307,8 +336,8 @@ export function computeScore(violations: RuleViolation[]) {
 const CLEAN_MAX_CONSTRUCTOR_PARAMS = 4;
 const CLEAN_MAX_METHODS = 10;
 const CLEAN_MAX_IMPORTS = 10;
-const CLEAN_MAX_LINES_CORE = 200;   // domain / application
-const CLEAN_MAX_LINES_OUTER = 300;  // infra / adapters / unknown
+const CLEAN_MAX_LINES_CORE = 200; // domain / application
+const CLEAN_MAX_LINES_OUTER = 300; // infra / adapters / unknown
 
 export function runCleanCodeRules(model: ArchitectureModel): RuleViolation[] {
   const violations: RuleViolation[] = [];
@@ -450,4 +479,3 @@ export function runGreenCodeRules(model: ArchitectureModel): RuleViolation[] {
 
   return violations;
 }
-

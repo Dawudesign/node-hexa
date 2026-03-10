@@ -53,7 +53,7 @@ npm install -g @dawudesign/node-hexa-cli
 Verify:
 
 ```bash
-node-hexa --version   # 0.4.0
+node-hexa --version   # 0.4.1
 node-hexa --help
 ```
 
@@ -412,10 +412,14 @@ Full analysis report: Mermaid graph, layer breakdown, architecture violations, c
 node-hexa analyze <path>
 ```
 
+> **Tip:** you can pass the contexts directory directly (`node-hexa analyze src/contexts`) and node-hexa will detect it automatically without a config file.
+
 **Example**
 
 ```bash
 node-hexa analyze .
+# or
+node-hexa analyze src/contexts
 ```
 
 **Output**
@@ -567,7 +571,10 @@ Component kind is detected in priority order:
 
 1. **Name pattern** — file/class name contains `UseCase`, `Entity`, `Repository`, `Controller`, `Port`, `Vo`/`ValueObject`/`Value-Object`, `Module`
 2. **Decorator** — `@Injectable()`, `@Controller()`, `@Module()`
-3. **Location** — directory is `/entities/`, `/value-objects/`, `/use-cases/`, `/ports/`
+3. **Directory (known layer folder)** — file lives inside `/entities/`, `/value-objects/`, `/use-cases/`, `/ports/`
+4. **Directory (infrastructure folder)** — file lives inside `/persistence/`, `/repository/`, `/repositories/` → `repository`; `/http/`, `/controllers/`, `/rest/`, `/graphql/` → `controller`
+
+This means a class named `UserDataAccess` placed under `domain/persistence/` is still correctly identified as a repository implementation and caught by misplacement rules, even though its name doesn't match the `*Repository` pattern.
 
 Bounded contexts are detected by reading the directory immediately above `domain/`, `application/`, or `infrastructure/` inside `contextsDir` (`src/contexts/` by default).
 
@@ -603,6 +610,8 @@ These rules catch components placed in the wrong layer:
 | Use case not in `application/` | `HIGH` | −15 pts |
 | Controller found in `domain/` or `application/` | `CRITICAL` | −25 pts |
 | Repository implementation in `domain/` | `CRITICAL` | −25 pts |
+
+> **Tip:** misplacement is detected by directory path, not just class name. A class named `UserDataAccess` in `domain/persistence/` is just as flagged as one named `UserRepository`.
 | NestJS module in `domain/` or `application/` | `HIGH` | −15 pts |
 
 ### Cross-context isolation rules
@@ -828,7 +837,7 @@ pnpm -r build        # builds all packages in dependency order
 ### Tests
 
 ```bash
-pnpm -r test                       # all packages (59 tests)
+pnpm -r test                       # all packages (61 tests)
 pnpm -F @node-hexa/rules test      # unit tests — violation rules
 pnpm -F @node-hexa/core test       # integration tests — file generation
 ```

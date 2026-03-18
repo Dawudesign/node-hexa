@@ -1,5 +1,22 @@
 # Node Hexa
 
+## TL;DR
+
+Install:
+
+```bash
+npm install -g @dawudesign/node-hexa-cli
+```
+
+Run:
+
+```bash
+node-hexa init my-app
+node-hexa audit .
+```
+
+Node-Hexa helps teams enforce architecture rules automatically as projects grow.
+
 Architecture governance CLI for NestJS (Hexagonal Architecture + DDD + Clean Architecture)
 
 Node-Hexa automatically enforces Hexagonal Architecture and DDD in NestJS projects to prevent architecture drift.

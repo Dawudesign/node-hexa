@@ -1,14 +1,22 @@
 {
   "name": "@dawudesign/node-hexa-cli",
-  "version": "0.5.1",
-  "description": "CLI to scaffold and analyze NestJS Hexagonal DDD projects",
+  "version": "0.5.2",
+  "description": "Architecture governance CLI for NestJS. Generate, audit and enforce Hexagonal Architecture and DDD with CI quality gates.",
   "keywords": [
     "nestjs",
-    "hexagonal",
     "ddd",
-    "architecture",
+    "hexagonal-architecture",
+    "clean-architecture",
+    "software-architecture",
+    "architecture-governance",
+    "static-analysis",
+    "code-quality",
+    "architecture-testing",
     "cli",
-    "scaffold"
+    "typescript",
+    "backend",
+    "ci",
+    "quality-gate"
   ],
   "license": "MIT",
   "engines": {
@@ -16,7 +24,9 @@
   },
   "files": [
     "dist",
-    "bin"
+    "bin",
+    "README.md",
+    "LICENSE"
   ],
   "bin": {
     "node-hexa": "bin/node-hexa.js"

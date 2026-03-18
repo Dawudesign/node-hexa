@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],
+    "resolveJsonModule": true,
     "paths": {
       "@node-hexa/core": ["../../packages/core/src"],
       "@node-hexa/model": ["../../packages/model/src"]

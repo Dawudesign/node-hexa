@@ -38,6 +38,7 @@ import {
   shouldFailQualityGate,
 } from "./audit-command";
 import { printDoctorReport, runDoctor } from "./doctor-command";
+import { CLI_VERSION } from "./package-info";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -111,8 +112,8 @@ const program = new Command();
 
 program
   .name("node-hexa")
-  .description("Architecture analyzer and scaffolder for NestJS Hexagonal DDD")
-  .version(process.env["npm_package_version"] ?? "0.4.0");
+  .description("Architecture governance CLI for NestJS")
+  .version(CLI_VERSION);
 
 program
   .command("analyze")
@@ -245,7 +246,7 @@ program
 
       const failUnder = resolveFailUnder(options.failUnder, report.config.qualityGate.minScore);
       const qualityGate = computeQualityGate(report, failUnder);
-      const toolVersion = process.env["npm_package_version"] ?? "0.4.0";
+      const toolVersion = CLI_VERSION;
 
       let baselineComparison: ReturnType<typeof compareAuditBaseline> | undefined;
       if (options.compareBaseline) {

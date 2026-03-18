@@ -2,18 +2,42 @@ import { Command } from "commander";
 
 import {
   analyzeProject,
+  buildArchitectureAuditReport,
+  compareAuditBaseline,
+  generateAuditSarif,
+  generateAuditBadgeSvg,
   generateMermaidGraph,
   generateDocs,
+  generateAuditHtmlReport,
   generateGraphFile,
   detectContexts,
   generateProject,
   generateContext,
   generateUseCase,
   generateAggregate,
+  generateDemoProject,
   listContexts,
+  readAuditBaseline,
+  writeAuditBaseline,
 } from "@node-hexa/core";
 import type { RuleViolation, ConfigIssue } from "@node-hexa/core";
 import type { ArchitectureNode } from "@node-hexa/model";
+import {
+  computeQualityGate,
+  formatAuditCiMessage,
+  formatAuditCiViolations,
+  formatAuditVscodeDiagnostics,
+  isCiFormat,
+  isHtmlReportFormat,
+  isJsonOutput,
+  isVscodeOutput,
+  printBaselineComparison,
+  printAuditReport,
+  resolveFailUnder,
+  serializeAuditReportJson,
+  shouldFailQualityGate,
+} from "./audit-command";
+import { printDoctorReport, runDoctor } from "./doctor-command";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -149,9 +173,19 @@ program
   .command("init")
   .description("Create a new NestJS Hexagonal DDD project")
   .argument("<name>", "project name (lowercase, hyphens allowed)")
-  .action((name: string) => {
+  .option("--template <type>", "starter template (api|microservice|event-driven)", "api")
+  .option("--ci", "generate CI templates for GitHub Actions and GitLab")
+  .action((name: string, options: { template?: string; ci?: boolean }) => {
     try {
-      generateProject(name);
+      const template = (options.template ?? "api").trim().toLowerCase();
+      if (!["api", "microservice", "event-driven"].includes(template)) {
+        die(`Unsupported template '${options.template}'. Supported values: api, microservice, event-driven`);
+      }
+
+      generateProject(name, {
+        template: template as "api" | "microservice" | "event-driven",
+        withCi: options.ci ?? false,
+      });
     } catch (err) {
       handleError(err);
     }
@@ -177,6 +211,149 @@ program
       } else {
         die(`Unknown type: '${type}'. Use context | usecase | aggregate`);
       }
+    } catch (err) {
+      handleError(err);
+    }
+  });
+
+program
+  .command("audit")
+  .description("Audit Hexagonal DDD architecture and compute an architecture score")
+  .argument("[path]", "project path", ".")
+  .option("--fail-under <score>", "fail with exit code 1 when score is lower than threshold")
+  .option("--badge", "generate node-hexa-score.svg badge")
+  .option("--baseline", "generate node-hexa-baseline.json")
+  .option("--compare-baseline", "compare current audit against node-hexa-baseline.json")
+  .option("--format <format>", "output format (ci|sarif)")
+  .option("--output <type>", "output type (json|vscode)")
+  .option("--report <format>", "optional report format (html)")
+  .action(async (projectPath: string, options: { failUnder?: string; report?: string; badge?: boolean; format?: string; output?: string; baseline?: boolean; compareBaseline?: boolean }) => {
+    try {
+      const analysis = await analyzeProject(projectPath);
+      const report = buildArchitectureAuditReport(projectPath, {
+        model: analysis.model,
+        violations: analysis.violations,
+      });
+
+      if (options.output && !isJsonOutput(options.output) && !isVscodeOutput(options.output)) {
+        die(`Unsupported output type '${options.output}'. Supported values: json, vscode`);
+      }
+
+      if (options.format && !["ci", "sarif"].includes(options.format.toLowerCase())) {
+        die(`Unsupported format '${options.format}'. Supported values: ci, sarif`);
+      }
+
+      const failUnder = resolveFailUnder(options.failUnder, report.config.qualityGate.minScore);
+      const qualityGate = computeQualityGate(report, failUnder);
+      const toolVersion = process.env["npm_package_version"] ?? "0.4.0";
+
+      let baselineComparison: ReturnType<typeof compareAuditBaseline> | undefined;
+      if (options.compareBaseline) {
+        const baseline = readAuditBaseline(projectPath);
+        baselineComparison = compareAuditBaseline(baseline, report);
+      }
+
+      if (isJsonOutput(options.output)) {
+        console.log(
+          serializeAuditReportJson(report, {
+            schemaVersion: "1.0",
+            toolVersion,
+            qualityGateStatus: qualityGate.qualityGateStatus,
+            failureReasons: qualityGate.failureReasons,
+            baselineComparison,
+          }),
+        );
+      } else if (isVscodeOutput(options.output)) {
+        const diagnostics = formatAuditVscodeDiagnostics(report);
+        for (const line of diagnostics) {
+          console.log(line);
+        }
+      } else if (options.format?.toLowerCase() === "sarif") {
+        console.log(generateAuditSarif(report, toolVersion));
+      } else if (isCiFormat(options.format)) {
+        const ciLines = formatAuditCiViolations(report);
+        for (const line of ciLines) {
+          console.log(line);
+        }
+
+        const ciSummary = formatAuditCiMessage(report.score, failUnder);
+        console.log(ciSummary);
+
+        // GitLab-compatible plain fallback for logs
+        if (report.findings.length > 0) {
+          for (const finding of report.findings) {
+            console.log(`${finding.severity}: ${finding.ruleId} ${finding.message}`);
+          }
+        } else {
+          console.log("INFO: No architecture violations detected");
+        }
+
+        if (ciSummary.startsWith("::error::")) {
+          console.log(`ERROR: Architecture score ${report.score} below threshold ${failUnder}`);
+        } else {
+          console.log(`INFO: Architecture score ${report.score} meets threshold ${failUnder}`);
+        }
+      } else {
+        printAuditReport(report);
+        if (baselineComparison) {
+          printBaselineComparison(baselineComparison);
+        }
+      }
+
+      if (options.report && !isHtmlReportFormat(options.report)) {
+        die(`Unsupported report format '${options.report}'. Supported values: html`);
+      }
+
+      if (isHtmlReportFormat(options.report)) {
+        const reportPath = generateAuditHtmlReport(report, projectPath);
+        console.log(`HTML report generated: ${reportPath}`);
+      }
+
+      if (options.badge) {
+        const badgePath = generateAuditBadgeSvg(report, projectPath);
+        console.log(`Badge generated: ${badgePath}`);
+      }
+
+      if (options.baseline) {
+        const baselinePath = writeAuditBaseline(report, projectPath);
+        console.log(`Baseline generated: ${baselinePath}`);
+      }
+
+      if (shouldFailQualityGate(report.score, failUnder)) {
+        console.error(`✗ Quality gate failed: score ${report.score} is below ${failUnder}`);
+        process.exit(1);
+      }
+
+      process.exit(0);
+    } catch (err) {
+      handleError(err);
+    }
+  });
+
+program
+  .command("doctor")
+  .description("Check local environment readiness for node-hexa usage")
+  .argument("[path]", "project path", ".")
+  .action((projectPath: string) => {
+    try {
+      const checks = runDoctor(projectPath);
+      printDoctorReport(checks);
+      const hasErrors = checks.some((check) => check.status === "error");
+      process.exit(hasErrors ? 1 : 0);
+    } catch (err) {
+      handleError(err);
+    }
+  });
+
+program
+  .command("demo")
+  .description("Generate a demo project with good and bad architecture samples")
+  .argument("[name]", "demo directory name", "node-hexa-demo")
+  .action((name: string) => {
+    try {
+      const demoPath = generateDemoProject(name);
+      console.log(`✓ Demo project generated at ${demoPath}`);
+      console.log(`  Next: cd ${name} && npx @dawudesign/node-hexa-cli audit .`);
     } catch (err) {
       handleError(err);
     }

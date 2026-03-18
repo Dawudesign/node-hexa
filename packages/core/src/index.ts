@@ -174,11 +174,35 @@ export { generateDocs } from "./docs";
 export { generateGraphFile } from "./graph";
 export { detectContexts } from "./context";
 export { generateProject } from "./init";
+export { generateDemoProject } from "./demo";
 export { generateContext } from "./generate-context";
 export { generateUseCase } from "./generate-usecase";
 export { generateAggregate } from "./generate-aggregate";
 export { listContexts } from "./list";
 export type { ContextSummary } from "./list";
+export {
+  buildArchitectureAuditReport,
+  compareAuditBaseline,
+  createAuditBaseline,
+  generateAuditSarif,
+  generateAuditBadgeSvg,
+  generateAuditHtmlReport,
+  readAuditBaseline,
+  writeAuditBaseline,
+} from "./audit";
+export type {
+  AuditBaseline,
+  AuditBaselineComparison,
+  ArchitectureAuditReport,
+  AuditAnalysisInput,
+  AuditFinding,
+  AuditStatus,
+} from "./audit";
+export {
+  loadAuditEngineConfig,
+  defaultAuditEngineConfig,
+} from "./audit-config";
+export type { AuditEngineConfig } from "./audit-config";
 export type { RuleViolation } from "@node-hexa/rules";
 export { runCleanCodeRules, runGreenCodeRules } from "@node-hexa/rules";
 export { validateConfig } from "./config";

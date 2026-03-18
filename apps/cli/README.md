@@ -1,19 +1,101 @@
-# @dawudesign/node-hexa-cli
+# Node Hexa
 
-> Scaffold and enforce **NestJS Hexagonal DDD** architecture from the command line.
+Architecture governance CLI for NestJS (Hexagonal Architecture + DDD + Clean Architecture)
 
-- **Scaffold** — generate a full NestJS project or bounded context in one command
-- **Enforce** — statically analyze your TypeScript source and report architecture violations
-- **Document** — export a Mermaid diagram and architecture report
+Node-Hexa automatically enforces Hexagonal Architecture and DDD in NestJS projects to prevent architecture drift.
 
----
+## Command Cheat Sheet
 
-## Requirements
+| Command | Purpose |
+|---|---|
+| `audit` | Analyze architecture quality and report score/violations |
+| `init` | Create a NestJS project scaffold with Node-Hexa structure |
+| `check` | Validate architecture, clean code, and green code rules for CI |
 
-- Node.js ≥ 20
-- npm or pnpm
+## Example Architecture Enforced
 
----
+```text
+src/
+  contexts/
+    orders/
+      domain/
+      application/
+      infrastructure/
+```
+
+## Problem
+
+NestJS projects often start with clean structure and clear boundaries.
+
+Over time, architecture degrades:
+
+- dependency direction is violated
+- domain and infrastructure get coupled
+- architecture rules are not enforced consistently
+- reviews are manual and subjective
+
+Node-Hexa prevents this drift by making architecture checks explicit, repeatable, and automatable.
+
+## Why Not Just ESLint?
+
+- ESLint focuses on code quality and style at file/code-pattern level.
+- Node-Hexa focuses on architecture quality across layers, contexts, and dependency direction.
+
+Both are complementary: ESLint helps keep code clean, Node-Hexa helps keep architecture clean.
+
+## When Should You Use Node-Hexa?
+
+Use Node-Hexa if:
+
+- you use NestJS
+- you use DDD / Hexagonal Architecture
+- you want enforceable architecture rules
+- you want CI architecture checks and score thresholds
+
+## When Not to Use It
+
+Node-Hexa is usually not useful for:
+
+- very small scripts
+- throwaway prototypes
+- projects that are not organized around DDD/architecture boundaries
+
+## What Node-Hexa Does
+
+- Generate clean architecture project scaffolding
+- Audit architecture quality with a score and rule violations
+- Detect boundary and dependency violations
+- Enforce architecture standards in CI
+- Track architecture evolution through baseline comparison
+
+## Quick Example
+
+```bash
+node-hexa audit .
+```
+
+Example output:
+
+```text
+Node Hexa Architecture Report
+
+Architecture score: 60/100
+Estimated technical debt: 1.5 days
+
+DDD compliance: ERROR
+Hexagonal boundaries: ERROR
+Dependency violations: ERROR
+
+Detected problems:
+- [NXH012][ERROR][DDD] Context 'bad' has no domain port
+- [NXH010][ERROR][STRUCTURE] Context 'bad' is missing 'application' directory
+- [NXH001][ERROR][DEPENDENCY] Domain must not depend on infrastructure
+
+Recommendations:
+- Create domain ports to invert dependencies between application and infrastructure layers.
+- Create the standard hexagonal folders: domain, application, and infrastructure.
+- Enforce inward dependency flow: infrastructure -> application -> domain through ports and interfaces.
+```
 
 ## Installation
 
@@ -21,191 +103,290 @@
 npm install -g @dawudesign/node-hexa-cli
 ```
 
----
-
-## Commands
-
-### `init`
-
-Create a new NestJS project with the full Hexagonal DDD structure.
+Verify:
 
 ```bash
-node-hexa init <name>
+node-hexa --version
+node-hexa --help
 ```
+
+## Quick Start
 
 ```bash
 node-hexa init my-app
 cd my-app
-pnpm start:dev
+node-hexa audit .
 ```
 
-Generated structure:
+What happens:
 
-```text
-my-app/
-├── src/
-│   ├── main.ts
-│   ├── app.module.ts
-│   ├── contexts/       ← add your bounded contexts here
-│   └── shared/
-└── node-hexa.config.json
-```
+- `init` scaffolds a NestJS project with Hexagonal DDD folder structure and starter context
+- `audit` analyzes architecture and outputs score, violations, recommendations, and technical debt
 
-Then add your first bounded context:
+Expected result:
+
+- You should see an architecture score and violation report.
+
+## Core Commands
+
+### init
+
+Purpose: scaffold a new NestJS project with Node-Hexa structure.
 
 ```bash
-cd my-app
+node-hexa init my-app --template api --ci
+```
+
+Output:
+
+- project created
+- architecture config generated
+- optional CI templates generated (`.github/workflows/node-hexa.yml`, `.gitlab-ci.yml`)
+
+### generate
+
+Purpose: generate architecture elements inside an existing project.
+
+```bash
 node-hexa generate context orders
-```
-
----
-
-### `generate`
-
-Generate scaffolding inside an existing project.
-
-```bash
-node-hexa generate context <name>
-node-hexa generate usecase <name> <context>
-node-hexa generate aggregate <name> <context>
-```
-
-```bash
-# New bounded context
-node-hexa generate context orders
-
-# Use case inside a context
-node-hexa generate usecase delete-user iam
-
-# Full DDD aggregate (entity, port, use case, controller, repository)
+node-hexa generate usecase create-order orders
 node-hexa generate aggregate product catalog
 ```
 
----
+Output:
 
-### `check`
+- generated files for context/use case/aggregate using expected folder conventions
 
-Check architecture violations. Exits `0` if clean, `1` if violations found. Designed for CI.
+### audit
+
+Purpose: evaluate architecture quality and produce governance outputs.
 
 ```bash
-node-hexa check <path>
-node-hexa check <path> --watch
+node-hexa audit .
 ```
 
+Output:
+
+- architecture score
+- violations with `NXH` rule IDs
+- recommendations
+- technical debt estimate
+
+### check
+
+Purpose: CI-friendly pass/fail check for architecture, clean code, and green code rules.
+
 ```bash
-# One-shot (CI)
 node-hexa check .
-
-# Watch mode
-node-hexa check . --watch
 ```
 
 Output:
 
-```text
-✓ Architecture check passed
-```
+- exits `0` when clean
+- exits `1` on violations
+- exits `2` on configuration/runtime errors
 
-or:
+### doctor
 
-```text
-✗ Architecture violations detected
-
-  [CRITICAL] Domain must not depend on infrastructure → UserEntity
-  [HIGH] Application must not depend on infrastructure → CreateUserUseCase
-```
-
----
-
-### `analyze`
-
-Full analysis: layers, violations, bounded contexts, Mermaid diagram, and score.
+Purpose: validate local readiness (Node, TypeScript, NestJS, config presence).
 
 ```bash
-node-hexa analyze <path>
-```
-
----
-
-### `list`
-
-List all bounded contexts and their components.
-
-```bash
-node-hexa list <path>
+node-hexa doctor .
 ```
 
 Output:
 
+- environment checks with `ok`, `warn`, or `error`
+
+### demo
+
+Purpose: create a sample project with good and bad architecture patterns for demonstration.
+
+```bash
+node-hexa demo
+```
+
+Output:
+
+- generated demo folder with intentional violations for live audit demonstration
+
+## Audit Usage
+
+Node-Hexa audit is centered on four outputs:
+
+- score (`0..100`)
+- violations (`NXH` rules)
+- technical debt estimate (days)
+- quality gate status
+
+### Default audit
+
+```bash
+node-hexa audit .
+```
+
+### Enforce minimum score
+
+```bash
+node-hexa audit . --fail-under 80
+```
+
+### Machine-readable JSON
+
+```bash
+node-hexa audit . --output json
+```
+
+### CI annotation format
+
+```bash
+node-hexa audit . --format ci
+```
+
+## CI Integration Example
+
+GitHub Actions example:
+
+```yaml
+name: architecture
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  node-hexa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx @dawudesign/node-hexa-cli audit . --fail-under 80 --format ci
+```
+
+## Architecture Rules
+
+Node-Hexa rules are identified with `NXH` IDs (`NXH001`, `NXH002`, ...).
+
+Each rule has:
+
+- description
+- why it matters
+- how to fix
+- severity
+
+Full catalog: [ARCHITECTURE_RULES.md](ARCHITECTURE_RULES.md)
+
+## Enterprise Usage
+
+For governance and reporting workflows:
+
+### Baseline
+
+```bash
+node-hexa audit . --baseline
+node-hexa audit . --compare-baseline
+```
+
+### SARIF
+
+```bash
+node-hexa audit . --format sarif
+```
+
+### JSON
+
+```bash
+node-hexa audit . --output json
+```
+
+### Quality gate enforcement
+
+```bash
+node-hexa audit . --fail-under 80
+```
+
+## Developer Workflow Diagram
+
+Developer workflow diagram:
+
 ```text
-Bounded Contexts (2)
-
-  IAM
-    Entities      : user.entity
-    Ports         : user.repository.port
-    Use Cases     : create-user.usecase
-
-  CATALOG
-    Entities      : product.entity
-    Ports         : product.repository.port
-    Use Cases     : create-product.usecase
+Developer writes code
+  -> runs node-hexa audit
+  -> fixes violations
+  -> CI enforces score
 ```
 
----
+## Typical Team Usage
 
-### `docs`
+Local development:
 
-Generate an `architecture.md` at the project root with the Mermaid diagram and violations.
+- run `node-hexa audit .` before commit
+
+Pull request:
+
+- CI runs `node-hexa audit . --fail-under 80 --format ci`
+
+Main branch:
+
+- compare against baseline for architecture evolution tracking
 
 ```bash
-node-hexa docs <path>
+node-hexa audit . --compare-baseline --output json
 ```
 
----
+## Example Workflow
 
-### `graph`
+Typical team workflow:
 
-Generate an `architecture.svg` dependency graph (requires `@mermaid-js/mermaid-cli`).
+1. Local development: run audit before commit.
 
 ```bash
-npm install -g @mermaid-js/mermaid-cli
-node-hexa graph <path>
+node-hexa audit .
 ```
 
----
+2. Pull request: enforce threshold and annotate CI logs.
 
-## Configuration
-
-`node-hexa.config.json` at the project root (created by `init`, all keys optional):
-
-```json
-{
-  "architecture": "hexagonal-ddd",
-  "strict": true,
-  "contextsDir": "src/contexts"
-}
+```bash
+node-hexa audit . --fail-under 80 --format ci
 ```
 
-| Key | Type | Default | Description |
-| --- | ---- | ------- | ----------- |
-| `architecture` | `string` | `"hexagonal-ddd"` | Architecture type |
-| `strict` | `boolean` | `true` | `false` silences `MEDIUM` violations |
-| `contextsDir` | `string` | `"src/contexts"` | Path to bounded contexts directory |
+3. Main branch: keep baseline and monitor architecture evolution.
 
----
+```bash
+node-hexa audit . --compare-baseline --output json
+```
 
-## Violation rules
+## Documentation Links
 
-| Violation | Severity |
-| --------- | -------- |
-| Domain imports from infrastructure or adapter | `CRITICAL` |
-| Domain imports from application | `CRITICAL` |
-| Domain imports a framework (`@nestjs/*`, `prisma`…) | `CRITICAL` |
-| Application imports from infrastructure or adapter | `HIGH` |
+- [ARCHITECTURE_RULES.md](ARCHITECTURE_RULES.md)
+- [example-audit-report.md](example-audit-report.md)
+- [NODE_HEXA_ENTERPRISE_PITCH.md](NODE_HEXA_ENTERPRISE_PITCH.md)
 
----
+## Roadmap
+
+No public roadmap document is currently maintained in this repository.
+
+## Contributing
+
+```bash
+pnpm install
+pnpm -r build
+pnpm -r test
+```
+
+Pull requests should include:
+
+- clear scope
+- tests for behavior changes
+- documentation updates for user-facing changes
 
 ## License
 
-MIT
+This repository uses a proprietary license.
 
+See [LICENSE](LICENSE).
+
+Node-Hexa helps teams keep architecture clean as projects scale.

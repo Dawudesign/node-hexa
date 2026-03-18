@@ -1,48 +1,101 @@
-# node-hexa
+# Node Hexa
 
-> Scaffold and enforce **NestJS Hexagonal DDD** architecture from the command line.
+Architecture governance CLI for NestJS (Hexagonal Architecture + DDD + Clean Architecture)
 
-**node-hexa** automates the repetitive parts of clean architecture in NestJS:
+Node-Hexa automatically enforces Hexagonal Architecture and DDD in NestJS projects to prevent architecture drift.
 
-- **Scaffold** — generates a full bounded context (entities, ports, use cases, repositories, controllers, NestJS modules) with dependency injection pre-wired, in one command
-- **Enforce** — statically analyzes your TypeScript source and reports architecture violations (domain leaking into infrastructure, application bypassing ports, framework imports in domain, cross-context coupling, misplaced components, etc.)
-- **Measure** — checks Clean Code metrics (constructor complexity, method count, file size) and Green Code / eco-design guidelines (memory pressure, cold-start cost, tree-shaking)
-- **Document** — exports a Mermaid diagram and architecture report as Markdown or SVG
+## Command Cheat Sheet
 
----
+| Command | Purpose |
+|---|---|
+| `audit` | Analyze architecture quality and report score/violations |
+| `init` | Create a NestJS project scaffold with Node-Hexa structure |
+| `check` | Validate architecture, clean code, and green code rules for CI |
 
-## Table of Contents
+## Example Architecture Enforced
 
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Quickstart](#quickstart)
-- [Commands](#commands)
-  - [init](#init)
-  - [generate context](#generate-context)
-  - [generate usecase](#generate-usecase)
-  - [generate aggregate](#generate-aggregate)
-  - [check](#check)
-  - [analyze](#analyze)
-  - [list](#list)
-  - [docs](#docs)
-  - [graph](#graph)
-- [Architecture model](#architecture-model)
-- [Architecture rules](#architecture-rules)
-- [Clean Code rules](#clean-code-rules)
-- [Green Code rules](#green-code-rules)
-- [Config validation](#config-validation)
-- [Configuration](#configuration)
-- [CI/CD integration](#cicd-integration)
-- [Development](#development)
+```text
+src/
+  contexts/
+    orders/
+      domain/
+      application/
+      infrastructure/
+```
 
----
+## Problem
 
-## Requirements
+NestJS projects often start with clean structure and clear boundaries.
 
-- **Node.js ≥ 20**
-- **npm** or **pnpm ≥ 10**
+Over time, architecture degrades:
 
----
+- dependency direction is violated
+- domain and infrastructure get coupled
+- architecture rules are not enforced consistently
+- reviews are manual and subjective
+
+Node-Hexa prevents this drift by making architecture checks explicit, repeatable, and automatable.
+
+## Why Not Just ESLint?
+
+- ESLint focuses on code quality and style at file/code-pattern level.
+- Node-Hexa focuses on architecture quality across layers, contexts, and dependency direction.
+
+Both are complementary: ESLint helps keep code clean, Node-Hexa helps keep architecture clean.
+
+## When Should You Use Node-Hexa?
+
+Use Node-Hexa if:
+
+- you use NestJS
+- you use DDD / Hexagonal Architecture
+- you want enforceable architecture rules
+- you want CI architecture checks and score thresholds
+
+## When Not to Use It
+
+Node-Hexa is usually not useful for:
+
+- very small scripts
+- throwaway prototypes
+- projects that are not organized around DDD/architecture boundaries
+
+## What Node-Hexa Does
+
+- Generate clean architecture project scaffolding
+- Audit architecture quality with a score and rule violations
+- Detect boundary and dependency violations
+- Enforce architecture standards in CI
+- Track architecture evolution through baseline comparison
+
+## Quick Example
+
+```bash
+node-hexa audit .
+```
+
+Example output:
+
+```text
+Node Hexa Architecture Report
+
+Architecture score: 60/100
+Estimated technical debt: 1.5 days
+
+DDD compliance: ERROR
+Hexagonal boundaries: ERROR
+Dependency violations: ERROR
+
+Detected problems:
+- [NXH012][ERROR][DDD] Context 'bad' has no domain port
+- [NXH010][ERROR][STRUCTURE] Context 'bad' is missing 'application' directory
+- [NXH001][ERROR][DEPENDENCY] Domain must not depend on infrastructure
+
+Recommendations:
+- Create domain ports to invert dependencies between application and infrastructure layers.
+- Create the standard hexagonal folders: domain, application, and infrastructure.
+- Enforce inward dependency flow: infrastructure -> application -> domain through ports and interfaces.
+```
 
 ## Installation
 
@@ -53,827 +106,287 @@ npm install -g @dawudesign/node-hexa-cli
 Verify:
 
 ```bash
-node-hexa --version   # 0.4.1
+node-hexa --version
 node-hexa --help
 ```
 
----
-
-## Quickstart
+## Quick Start
 
 ```bash
-# 1. Create a new NestJS Hexagonal DDD project
 node-hexa init my-app
 cd my-app
-
-# 2. Start the server
-pnpm start:dev
-
-# 3. Test the generated endpoint
-curl -X POST http://localhost:3000/users \
-  -H "Content-Type: application/json" \
-  -d '{"email": "alice@example.com", "name": "Alice"}'
-
-# 4. Verify architecture, clean code, and green code are all clean
-node-hexa check .
-# ✓ All checks passed (architecture, clean code, green code)
+node-hexa audit .
 ```
 
-In under 2 minutes you have a running NestJS project with:
+What happens:
 
-- A `iam` bounded context (user entity, repository port, use case, in-memory repository, HTTP controller)
-- Full NestJS dependency injection wired
-- Architecture, clean code and eco-design rules enforced
+- `init` scaffolds a NestJS project with Hexagonal DDD folder structure and starter context
+- `audit` analyzes architecture and outputs score, violations, recommendations, and technical debt
 
----
+Expected result:
 
-## Commands
+- You should see an architecture score and violation report.
+
+## Core Commands
 
 ### init
 
-Creates a new NestJS project with the complete Hexagonal DDD structure.
-
-```text
-node-hexa init <name>
-```
-
-**Arguments**
-
-| Argument | Description |
-|---|---|
-| `<name>` | Project name — lowercase letters, digits, hyphens (e.g. `my-app`) |
-
-**Example**
+Purpose: scaffold a new NestJS project with Node-Hexa structure.
 
 ```bash
-node-hexa init my-app
+node-hexa init my-app --template api --ci
 ```
 
-**What it does**
+Output:
 
-1. Runs `npx @nestjs/cli@latest new my-app` (auto-detects pnpm or npm)
-2. Replaces the default `src/` with a clean Hexagonal DDD structure
-3. Creates `node-hexa.config.json` at the project root
+- project created
+- architecture config generated
+- optional CI templates generated (`.github/workflows/node-hexa.yml`, `.gitlab-ci.yml`)
 
-**Generated structure**
+### generate
 
-```text
-my-app/
-├── src/
-│   ├── main.ts
-│   ├── app.module.ts
-│   ├── shared/
-│   └── contexts/
-│       └── iam/
-│           ├── iam.module.ts
-│           ├── domain/
-│           │   ├── entities/
-│           │   │   └── user.entity.ts
-│           │   └── ports/
-│           │       └── user.repository.port.ts    ← Symbol DI token + interface
-│           ├── application/
-│           │   └── use-cases/
-│           │       └── create-user.usecase.ts     ← @Inject of the port
-│           └── infrastructure/
-│               ├── http/
-│               │   └── user.controller.ts         ← POST /users
-│               └── persistence/
-│                   └── in-memory-user.repository.ts
-├── node-hexa.config.json
-└── package.json
-```
-
-**Errors**
-
-| Situation | Message |
-|---|---|
-| Directory already exists | `Directory "my-app" already exists. Remove it first or choose a different name.` |
-| Invalid name | `Invalid project name "MyApp". Use lowercase letters, digits, and hyphens only.` |
-| `@nestjs/cli` unavailable | Actionable error with fallback command |
-
----
-
-### generate context
-
-Generates a complete bounded context inside an existing NestJS project.
-
-```text
-node-hexa generate context <name>
-```
-
-**Must be run from the root of a NestJS project** (directory that contains a `package.json` with `@nestjs/core` in its dependencies).
-
-**Arguments**
-
-| Argument | Description |
-|---|---|
-| `<name>` | Context name in kebab-case (e.g. `orders`, `order-line`) |
-
-**Example**
+Purpose: generate architecture elements inside an existing project.
 
 ```bash
-cd my-app
 node-hexa generate context orders
-# ✓ Context 'orders' generated at src/contexts/orders/
-# → Import OrdersModule in your AppModule to activate it.
-```
-
-**Generated files in `src/contexts/orders/`**
-
-```text
-orders/
-├── orders.module.ts                         ← NestJS module, DI pre-wired
-├── domain/
-│   ├── entities/
-│   │   └── orders.entity.ts
-│   ├── value-objects/                       ← empty, ready to add VOs
-│   └── ports/
-│       └── orders.repository.port.ts        ← Symbol token + interface
-├── application/
-│   └── use-cases/
-│       └── create-orders.usecase.ts         ← @Inject of the port
-└── infrastructure/
-    ├── http/
-    │   └── orders.controller.ts             ← POST /orders
-    └── persistence/
-        └── in-memory-orders.repository.ts   ← in-memory adapter
-```
-
-**Activate in AppModule**
-
-```typescript
-// src/app.module.ts
-import { OrdersModule } from './contexts/orders/orders.module';
-
-@Module({ imports: [IamModule, OrdersModule] })
-export class AppModule {}
-```
-
-**Errors**
-
-| Situation | Message |
-|---|---|
-| Not in a NestJS project | `@nestjs/core not found in dependencies.` |
-| Invalid name | `Invalid context name "MyOrders". Use lowercase letters, digits, and hyphens.` |
-| Context already exists | `Context 'orders' already exists at src/contexts/orders.` |
-
----
-
-### generate usecase
-
-Generates a use case with its DTO and Vitest spec file inside an existing bounded context.
-
-```text
-node-hexa generate usecase <name> <context>
-```
-
-**Arguments**
-
-| Argument | Description |
-|---|---|
-| `<name>` | Use case name in kebab-case (e.g. `delete-user`, `update-order`) |
-| `<context>` | Target bounded context name in kebab-case |
-
-**Example**
-
-```bash
-node-hexa generate usecase delete-user iam
-# ✓ Use case 'delete-user' generated in context 'iam'
-```
-
-**Generated files in `src/contexts/iam/application/use-cases/`**
-
-```text
-delete-user.usecase.ts
-delete-user.dto.ts
-delete-user.usecase.spec.ts
-```
-
-**`delete-user.usecase.ts`** — auto-injects the existing repository port if one is found in the context:
-
-```typescript
-import { Inject, Injectable } from '@nestjs/common';
-import { USER_REPOSITORY_PORT, UserRepositoryPort } from '../../domain/ports/user.repository.port';
-import { DeleteUserUseCaseDto } from './delete-user.dto';
-
-@Injectable()
-export class DeleteUserUseCase {
-  constructor(
-    @Inject(USER_REPOSITORY_PORT)
-    private readonly iamRepository: UserRepositoryPort,
-  ) {}
-
-  async execute(dto: DeleteUserUseCaseDto): Promise<void> {
-    // TODO: implement use case logic
-  }
-}
-```
-
-**Errors**
-
-| Situation | Message |
-|---|---|
-| Context does not exist | `Context 'iam' does not exist at src/contexts/iam. Run 'node-hexa generate context iam' first.` |
-| Invalid name | `Invalid use case name "DeleteUser". Use lowercase letters, digits, and hyphens.` |
-
----
-
-### generate aggregate
-
-Generates a complete DDD aggregate inside an existing bounded context: entity, value object, repository port, use case with DTO and Vitest spec, in-memory repository, HTTP controller, and NestJS module.
-
-```text
-node-hexa generate aggregate <name> <context>
-```
-
-**Arguments**
-
-| Argument | Description |
-|---|---|
-| `<name>` | Aggregate name in kebab-case (e.g. `product`, `order-line`) |
-| `<context>` | Target bounded context name in kebab-case |
-
-**Example**
-
-```bash
+node-hexa generate usecase create-order orders
 node-hexa generate aggregate product catalog
-# ✓ Aggregate 'product' generated in context 'catalog' at src/contexts/catalog/
-# → Import ProductModule in your CatalogModule or AppModule.
 ```
 
-**Generated files in `src/contexts/catalog/`**
+Output:
 
-```text
-catalog/
-├── product.module.ts
-├── domain/
-│   ├── entities/
-│   │   └── product.entity.ts
-│   ├── value-objects/
-│   │   └── product-id.vo.ts
-│   └── ports/
-│       └── product.repository.port.ts
-├── application/
-│   └── use-cases/
-│       ├── create-product.usecase.ts
-│       ├── create-product.dto.ts
-│       └── create-product.usecase.spec.ts   ← Vitest test with vi.fn() mocks
-└── infrastructure/
-    ├── http/
-    │   └── product.controller.ts
-    └── persistence/
-        └── in-memory-product.repository.ts
+- generated files for context/use case/aggregate using expected folder conventions
+
+### audit
+
+Purpose: evaluate architecture quality and produce governance outputs.
+
+```bash
+node-hexa audit .
 ```
 
-**Errors**
+Output:
 
-| Situation | Message |
-|---|---|
-| Context does not exist | `Context 'catalog' does not exist. Run 'node-hexa generate context catalog' first.` |
-| Invalid name | `Invalid aggregate name "Product". Use lowercase letters, digits, and hyphens.` |
-
----
+- architecture score
+- violations with `NXH` rule IDs
+- recommendations
+- technical debt estimate
 
 ### check
 
-Checks that a project contains no architecture, clean code, or green code violations. Designed for CI/CD — exits `0` if all checks pass, `1` if violations are found, `2` on configuration or project errors.
-
-```text
-node-hexa check <path> [--watch]
-```
-
-**Arguments**
-
-| Argument | Description |
-|---|---|
-| `<path>` | Path to the project root (must contain `tsconfig.json`) |
-
-**Options**
-
-| Flag | Description |
-|---|---|
-| `-w, --watch` | Re-run every 2 seconds — useful during development |
-
-**Examples**
+Purpose: CI-friendly pass/fail check for architecture, clean code, and green code rules.
 
 ```bash
-# One-shot check (CI)
 node-hexa check .
-
-# Watch mode (development)
-node-hexa check . --watch
 ```
 
-**Output — all checks passed**
+Output:
 
-```text
-✓ All checks passed (architecture, clean code, green code)
-```
+- exits `0` when clean
+- exits `1` on violations
+- exits `2` on configuration/runtime errors
 
-**Output — violations detected**
+### doctor
 
-```text
-✗ Architecture violations (2)
-
-  [CRITICAL] Domain must not depend on infrastructure → UserEntity
-    File: src/contexts/iam/domain/entities/user.entity.ts
-    Fix:  Extract the infrastructure dependency behind a domain port interface.
-
-  [HIGH] Application must not import infrastructure directly → CreateUserUseCase
-    File: src/contexts/iam/application/use-cases/create-user.usecase.ts
-    Fix:  Inject the repository through the domain port, not the concrete class.
-
-Architecture Score: 50/100
-
-✗ Clean Code violations (1)
-
-  [HIGH] Constructor has too many parameters (6 > 4) → OrderService
-    File: src/contexts/orders/application/order.service.ts
-    Fix:  Extract related parameters into a dedicated options object or command DTO.
-
-Clean Code Score: 90/100
-```
-
-**Exit codes**
-
-| Code | Meaning |
-|---|---|
-| `0` | No violations in any category |
-| `1` | Violations detected (architecture, clean code, or green code) |
-| `2` | Error (config validation failed, project not found, invalid tsconfig) |
-
----
-
-### analyze
-
-Full analysis report: Mermaid graph, layer breakdown, architecture violations, clean code violations, green code violations, bounded contexts, and config issues.
-
-```text
-node-hexa analyze <path>
-```
-
-> **Tip:** you can pass the contexts directory directly (`node-hexa analyze src/contexts`) and node-hexa will detect it automatically without a config file.
-
-**Example**
+Purpose: validate local readiness (Node, TypeScript, NestJS, config presence).
 
 ```bash
-node-hexa analyze .
-# or
-node-hexa analyze src/contexts
+node-hexa doctor .
 ```
 
-**Output**
+Output:
 
-```text
-Architecture Graph (Mermaid)
+- environment checks with `ok`, `warn`, or `error`
 
-flowchart LR
+### demo
 
-subgraph Domain
-  User
-  UserRepositoryPort
-end
-
-subgraph Application
-  CreateUserUseCase
-end
-
-subgraph AdapterIn["Adapter In (HTTP)"]
-  UserController
-end
-
-subgraph AdapterOut["Adapter Out (Persistence)"]
-  InMemoryUserRepository
-end
-
-DOMAIN
-  ✓ User (entity)
-  ✓ UserRepositoryPort (port)
-
-APPLICATION
-  ✓ CreateUserUseCase (use-case)
-
-ADAPTER-IN
-  ✓ UserController (controller)
-
-ADAPTER-OUT
-  ✓ InMemoryUserRepository (repository)
-
-── Architecture ─────────────────────────────────────
-  ✓ No architecture violations found
-Architecture Score: 100/100
-
-── Clean Code ─────────────────────────────────────
-  ✓ No clean code violations found
-Clean Code Score: 100/100
-
-── Green Code ─────────────────────────────────────
-  ✓ No green code violations found
-Green Code Score: 100/100
-
-Bounded Contexts
-
-IAM
-  - User (entity)
-  - UserRepositoryPort (port)
-  - CreateUserUseCase (use-case)
-  - UserController (controller)
-  - InMemoryUserRepository (repository)
-```
-
----
-
-### list
-
-Lists all bounded contexts and their components.
-
-```text
-node-hexa list <path>
-```
-
-**Example**
+Purpose: create a sample project with good and bad architecture patterns for demonstration.
 
 ```bash
-node-hexa list .
+node-hexa demo
 ```
 
-**Output**
+Output:
 
-```text
-Bounded Contexts (2)
+- generated demo folder with intentional violations for live audit demonstration
 
-  IAM
-    Entities      : user.entity
-    Ports         : user.repository.port
-    Use Cases     : create-user.usecase
+## Audit Usage
 
-  CATALOG
-    Entities      : product.entity
-    Value Objects : product-id.vo
-    Ports         : product.repository.port
-    Use Cases     : create-product.usecase
-```
+Node-Hexa audit is centered on four outputs:
 
----
+- score (`0..100`)
+- violations (`NXH` rules)
+- technical debt estimate (days)
+- quality gate status
 
-### docs
-
-Generates an `architecture.md` file at the project root with the Mermaid diagram, component list, violations, and score.
-
-```text
-node-hexa docs <path>
-```
-
-**Example**
+### Default audit
 
 ```bash
-node-hexa docs .
-# Architecture documentation generated: ./architecture.md
+node-hexa audit .
 ```
 
-The generated file is ready to commit and renders natively on GitHub.
-
----
-
-### graph
-
-Generates an `architecture.svg` file with the full dependency graph (requires `mmdc` from `@mermaid-js/mermaid-cli`).
-
-```text
-node-hexa graph <path>
-```
-
-**Example**
+### Enforce minimum score
 
 ```bash
-npm install -g @mermaid-js/mermaid-cli
-node-hexa graph .
-# Architecture graph generated: ./architecture.svg
+node-hexa audit . --fail-under 80
 ```
 
----
+### Machine-readable JSON
 
-## Architecture model
-
-node-hexa understands 5 layers:
-
-| Layer | Match keywords | Role |
-|---|---|---|
-| `domain` | `domain/` directory | Pure business logic — no external dependencies |
-| `application` | `application/` directory | Orchestrates domain via ports |
-| `adapter-in` | `http/` or `controller/` directory | Entry points (HTTP, events, CLI) |
-| `adapter-out` | `persistence/` or `repository/` directory | Output adapters (database, cache, external APIs) |
-| `infrastructure` | `infrastructure/` directory | Cross-cutting technical concerns |
-
-Layer detection uses the **directory path**, not the filename — so `user.repository.port.ts` inside `domain/ports/` is correctly classified as `domain`, not `adapter-out`.
-
-Component kind is detected in priority order:
-
-1. **Name pattern** — file/class name contains `UseCase`, `Entity`, `Repository`, `Controller`, `Port`, `Vo`/`ValueObject`/`Value-Object`, `Module`
-2. **Decorator** — `@Injectable()`, `@Controller()`, `@Module()`
-3. **Directory (known layer folder)** — file lives inside `/entities/`, `/value-objects/`, `/use-cases/`, `/ports/`
-4. **Directory (infrastructure folder)** — file lives inside `/persistence/`, `/repository/`, `/repositories/` → `repository`; `/http/`, `/controllers/`, `/rest/`, `/graphql/` → `controller`
-
-This means a class named `UserDataAccess` placed under `domain/persistence/` is still correctly identified as a repository implementation and caught by misplacement rules, even though its name doesn't match the `*Repository` pattern.
-
-Bounded contexts are detected by reading the directory immediately above `domain/`, `application/`, or `infrastructure/` inside `contextsDir` (`src/contexts/` by default).
-
----
-
-## Architecture rules
-
-All violations include a **suggestion** (`Fix:`) explaining how to resolve the issue.
-
-### Layer violation rules
-
-| Violation | Severity | Score penalty |
-|---|---|---|
-| Domain imports from infrastructure, adapter-in, or adapter-out | `CRITICAL` | −25 pts |
-| Domain imports from application | `CRITICAL` | −25 pts |
-| Application imports from infrastructure, adapter-in, or adapter-out | `HIGH` | −15 pts |
-
-### Framework pollution rules
-
-| Violation | Severity | Score penalty |
-|---|---|---|
-| Domain imports a framework (`@nestjs/*`, `express`, `prisma`, `mongoose`, `typeorm`, `mikro-orm`, `sequelize`) | `CRITICAL` | −25 pts |
-| Application imports an ORM (`prisma`, `mongoose`, `typeorm`, `mikro-orm`, `sequelize`) | `HIGH` | −15 pts |
-
-### Misplacement rules
-
-These rules catch components placed in the wrong layer:
-
-| Violation | Severity | Score penalty |
-|---|---|---|
-| Entity or Value Object not in `domain/` | `HIGH` | −15 pts |
-| Port (interface) not in `domain/` | `HIGH` | −15 pts |
-| Use case not in `application/` | `HIGH` | −15 pts |
-| Controller found in `domain/` or `application/` | `CRITICAL` | −25 pts |
-| Repository implementation in `domain/` | `CRITICAL` | −25 pts |
-
-> **Tip:** misplacement is detected by directory path, not just class name. A class named `UserDataAccess` in `domain/persistence/` is just as flagged as one named `UserRepository`.
-| NestJS module in `domain/` or `application/` | `HIGH` | −15 pts |
-
-### Cross-context isolation rules
-
-Each bounded context must be self-contained. Direct imports between contexts are forbidden unless the target is a **domain port** interface (which acts as the published API of the context).
-
-| Violation | Severity | Score penalty |
-|---|---|---|
-| Component imports directly from another bounded context's non-port code | `HIGH` | −15 pts |
-
-**Example violation:**
-
-```text
-[HIGH] Cross-context import: 'orders' imports from 'iam' → CreateOrderUseCase
-  File: src/contexts/orders/application/use-cases/create-order.usecase.ts
-  Fix:  Only import domain ports from other contexts. Use an anti-corruption layer or shared kernel for cross-context communication.
+```bash
+node-hexa audit . --output json
 ```
 
-**Allowed cross-context pattern:**
+### CI annotation format
 
-```typescript
-// ✓ OK — importing a port (published interface) from another context
-import { UserRepositoryPort } from '../../iam/domain/ports/user.repository.port';
-
-// ✗ Forbidden — importing a concrete implementation from another context
-import { InMemoryUserRepository } from '../../iam/infrastructure/persistence/in-memory-user.repository';
+```bash
+node-hexa audit . --format ci
 ```
 
-Score = `100 − sum of penalties`, minimum 0.
+## CI Integration Example
 
-**Strict mode** (`strict: true`, default) — all violations are reported.  
-**Non-strict mode** (`strict: false`) — `MEDIUM` violations are filtered out (useful for legacy codebases during migration).
-
----
-
-## Clean Code rules
-
-These rules measure structural code quality. Violations are reported separately from architecture violations with their own score.
-
-| Rule | Threshold | Severity | Score penalty |
-|---|---|---|---|
-| Constructor has too many parameters | > 4 params | `HIGH` | −15 pts |
-| Class has too many methods | > 10 methods | `MEDIUM` | −10 pts |
-| File has too many imports | > 10 imports | `MEDIUM` | −10 pts |
-| Domain / application file too long | > 200 lines | `MEDIUM` | −10 pts |
-| Infrastructure file too long | > 300 lines | `MEDIUM` | −10 pts |
-
-**Example violations:**
-
-```text
-[HIGH] Constructor has too many parameters (6 > 4) → OrderService
-  Fix:  Extract related parameters into a dedicated options object or command DTO.
-
-[MEDIUM] Class has too many methods (14 > 10) → UserController
-  Fix:  Split the class into smaller, focused controllers or use a router pattern.
-
-[MEDIUM] File has too many imports (12 > 10) → CreateOrderUseCase
-  Fix:  Consider grouping related imports via barrel exports or splitting the file.
-```
-
----
-
-## Green Code rules
-
-These rules apply **eco-design** guidelines to minimize runtime resource consumption. They target memory pressure (GC), cold-start time (module loading), and bundle size (tree-shaking).
-
-| Rule | Threshold | Severity | Why it matters |
-|---|---|---|---|
-| File has too many lines | > 300 lines | `MEDIUM` | Large files increase GC pressure during module loading |
-| File has too many imports | > 15 imports | `MEDIUM` | Each import adds cold-start cost; reduce coupling |
-| Too many classes per file | > 2 classes | `MEDIUM` | Bundlers cannot tree-shake unused exports from dense files |
-
-**Example violations:**
-
-```text
-[MEDIUM] File is too long (350 lines > 300) → user.repository.ts
-  Fix:  Split this file into smaller modules to reduce GC pressure during module loading.
-
-[MEDIUM] Too many classes in one file (3 > 2) → order.module.ts
-  Fix:  One class per file improves tree-shaking and readability.
-```
-
----
-
-## Config validation
-
-`node-hexa check` validates `node-hexa.config.json` before running any rules. Configuration errors cause the command to exit `2` immediately.
-
-| Check | What it verifies |
-|---|---|
-| `contextsDir` exists | The configured bounded contexts directory exists on disk |
-| Layer keywords not empty | Each layer must have at least one detection keyword |
-| No keyword overlap | The same keyword cannot match two different layers |
-
-**Example config error output:**
-
-```text
-✗ Config issues detected — fix before running checks
-
-  [ERROR] contextsDir 'src/contexts' does not exist.
-    Field: contextsDir
-    Fix:   Create the directory or update 'contextsDir' in node-hexa.config.json.
-
-  [WARNING] Layer keyword 'domain' appears in both 'domain' and 'application'.
-    Field: layers
-    Fix:   Ensure each keyword maps to exactly one layer.
-```
-
----
-
-## Configuration
-
-`node-hexa init` creates `node-hexa.config.json` at the project root. All keys are optional — missing keys fall back to defaults.
-
-```json
-{
-  "architecture": "hexagonal-ddd",
-  "strict": true,
-  "contextsDir": "src/contexts"
-}
-```
-
-| Key | Type | Default | Description |
-|---|---|---|---|
-| `architecture` | `"hexagonal-ddd"` | required | Architecture type — currently only `hexagonal-ddd` |
-| `strict` | `boolean` | `true` | `false` silences `MEDIUM` violations |
-| `contextsDir` | `string` | `"src/contexts"` | Path to bounded contexts directory. Relative to project root |
-
-**Custom layer keywords** — override which directory names map to which layer:
-
-```json
-{
-  "architecture": "hexagonal-ddd",
-  "strict": true,
-  "contextsDir": "src/contexts",
-  "layers": {
-    "domain": ["domain", "core"],
-    "application": ["application", "app"],
-    "adapterIn": ["http", "rest", "controller", "graphql"],
-    "adapterOut": ["persistence", "repository", "database"]
-  }
-}
-```
-
-Only list the keys you want to override — unlisted keys keep their defaults.
-
----
-
-## CI/CD integration
-
-Add `node-hexa check` as a step in your pipeline. It exits `1` on violations and `2` on config errors — both fail the build.
-
-**GitHub Actions**
+GitHub Actions example:
 
 ```yaml
-# .github/workflows/ci.yml
-- name: Architecture + quality check
-  run: npx @dawudesign/node-hexa-cli check .
+name: architecture
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  node-hexa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx @dawudesign/node-hexa-cli audit . --fail-under 80 --format ci
 ```
 
-Or if installed as a dev dependency:
+## Architecture Rules
 
-```yaml
-- name: Install dependencies
-  run: npm ci
+Node-Hexa rules are identified with `NXH` IDs (`NXH001`, `NXH002`, ...).
 
-- name: Architecture + quality check
-  run: npx node-hexa check .
+Each rule has:
+
+- description
+- why it matters
+- how to fix
+- severity
+
+Full catalog: [ARCHITECTURE_RULES.md](ARCHITECTURE_RULES.md)
+
+## Enterprise Usage
+
+For governance and reporting workflows:
+
+### Baseline
+
+```bash
+node-hexa audit . --baseline
+node-hexa audit . --compare-baseline
 ```
 
-**npm script**
+### SARIF
 
-```json
-{
-  "scripts": {
-    "arch:check": "node-hexa check .",
-    "arch:watch": "node-hexa check . --watch"
-  }
-}
+```bash
+node-hexa audit . --format sarif
 ```
 
-Then in CI:
+### JSON
 
-```yaml
-- run: npm run arch:check
+```bash
+node-hexa audit . --output json
 ```
 
-**Exit codes summary**
+### Quality gate enforcement
 
-| Code | Meaning | CI result |
-|---|---|---|
-| `0` | All checks passed (architecture + clean code + green code) | ✓ Pass |
-| `1` | Violations detected | ✗ Fail |
-| `2` | Error (config invalid, missing tsconfig, project not found) | ✗ Fail |
+```bash
+node-hexa audit . --fail-under 80
+```
 
----
+## Developer Workflow Diagram
 
-## Development
-
-### Project structure
+Developer workflow diagram:
 
 ```text
-node-hexa/
-├── packages/
-│   ├── model/       ← @node-hexa/model   — TypeScript types (ArchitectureModel, Layer, NodeMetrics, …)
-│   ├── parser/      ← @node-hexa/parser  — ts-morph static analysis (parses classes, methods, metrics)
-│   ├── rules/       ← @node-hexa/rules   — rule engines (architecture, clean code, green code)
-│   └── core/        ← @node-hexa/core    — generators, analyzer, config loader + validator
-├── apps/
-│   └── cli/         ← @dawudesign/node-hexa-cli — commander CLI entry point
-├── fixtures/
-│   └── test-app/    ← reference NestJS Hexagonal DDD project used in CI
-└── node-hexa.config.json
+Developer writes code
+  -> runs node-hexa audit
+  -> fixes violations
+  -> CI enforces score
 ```
 
-### Install and build
+## Typical Team Usage
+
+Local development:
+
+- run `node-hexa audit .` before commit
+
+Pull request:
+
+- CI runs `node-hexa audit . --fail-under 80 --format ci`
+
+Main branch:
+
+- compare against baseline for architecture evolution tracking
+
+```bash
+node-hexa audit . --compare-baseline --output json
+```
+
+## Example Workflow
+
+Typical team workflow:
+
+1. Local development: run audit before commit.
+
+```bash
+node-hexa audit .
+```
+
+2. Pull request: enforce threshold and annotate CI logs.
+
+```bash
+node-hexa audit . --fail-under 80 --format ci
+```
+
+3. Main branch: keep baseline and monitor architecture evolution.
+
+```bash
+node-hexa audit . --compare-baseline --output json
+```
+
+## Documentation Links
+
+- [ARCHITECTURE_RULES.md](ARCHITECTURE_RULES.md)
+- [example-audit-report.md](example-audit-report.md)
+- [NODE_HEXA_ENTERPRISE_PITCH.md](NODE_HEXA_ENTERPRISE_PITCH.md)
+
+## Roadmap
+
+No public roadmap document is currently maintained in this repository.
+
+## Contributing
 
 ```bash
 pnpm install
-pnpm -r build        # builds all packages in dependency order
-```
-
-### Tests
-
-```bash
-pnpm -r test                       # all packages (61 tests)
-pnpm -F @node-hexa/rules test      # unit tests — violation rules
-pnpm -F @node-hexa/core test       # integration tests — file generation
-```
-
-Tests use [Vitest](https://vitest.dev/). Integration tests create real files in OS temp directories and clean up after themselves.
-
-### Lint
-
-```bash
-pnpm lint         # check
-pnpm lint:fix     # auto-fix
-```
-
-### Local CLI development
-
-```bash
 pnpm -r build
-node apps/cli/dist/index.js --help
-node apps/cli/dist/index.js analyze fixtures/test-app
-node apps/cli/dist/index.js check fixtures/test-app
+pnpm -r test
 ```
 
-Or link globally:
+Pull requests should include:
 
-```bash
-cd apps/cli && npm link
-node-hexa check fixtures/test-app
-```
+- clear scope
+- tests for behavior changes
+- documentation updates for user-facing changes
 
-### CI
+## License
 
-GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and pull request to `main` and `develop`:
+This repository uses a proprietary license.
 
-1. **Build & Test** — matrix Node 20 + 22 — `pnpm install → pnpm build → pnpm test`
-2. **Architecture Check** — `node-hexa check fixtures/test-app` — validates the CLI works end-to-end on a real NestJS project
+See [LICENSE](LICENSE).
 
-
----
-
+Node-Hexa helps teams keep architecture clean as projects scale.

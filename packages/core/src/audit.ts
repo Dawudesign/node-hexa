@@ -29,6 +29,7 @@ type InternalAuditFinding = {
   recommendation: string;
 };
 
+
 export type AuditFinding = {
   ruleId: string;
   category: RuleCategory;
@@ -38,12 +39,15 @@ export type AuditFinding = {
   filePath?: string;
 };
 
+export type EstimatedTechnicalDebtByContext = Record<string, number>;
+
 export type AuditStatus = "OK" | "WARNING" | "ERROR";
 
 export type ArchitectureAuditReport = {
   score: number;
   maxScore: number;
   estimatedTechnicalDebtDays: number;
+  estimatedTechnicalDebtByContext: EstimatedTechnicalDebtByContext;
   categoryScores: CategoryScores;
   dddCompliance: AuditStatus;
   hexagonalBoundaries: AuditStatus;
@@ -92,6 +96,7 @@ const FINDING_ORDER: Record<AuditSeverity, number> = {
   ERROR: 0,
   WARNING: 1,
   INFO: 2,
+  // Nouvelle fonction: dette technique par contexte
 };
 
 const RULE_IDS_BY_CODE: Record<string, string> = {
@@ -171,6 +176,25 @@ function estimateTechnicalDebtDays(findings: InternalAuditFinding[]): number {
   }, 0);
 
   return Number(debt.toFixed(1));
+}
+
+// Calcule la dette technique par contexte
+function estimateTechnicalDebtByContext(findings: InternalAuditFinding[]): Record<string, number> {
+  const contextDebt: Record<string, number> = {};
+  for (const finding of findings) {
+    const context = detectContextFromPath(finding.filePath || "unknown") || "unknown";
+    const add = finding.severity === "ERROR"
+      ? ERROR_DEBT_DAYS
+      : finding.severity === "WARNING"
+        ? WARNING_DEBT_DAYS
+        : INFO_DEBT_DAYS;
+    contextDebt[context] = (contextDebt[context] || 0) + add;
+  }
+  // Arrondir à 1 décimale
+  Object.keys(contextDebt).forEach(ctx => {
+    contextDebt[ctx] = Number(contextDebt[ctx].toFixed(1));
+  });
+  return contextDebt;
 }
 
 function findNodeByImport(
@@ -659,11 +683,13 @@ export function buildArchitectureAuditReport(
 
   const recommendations = [...new Set(findings.map((finding) => finding.recommendation))];
   const estimatedTechnicalDebtDays = estimateTechnicalDebtDays(findings);
+  const estimatedTechnicalDebtByContext = estimateTechnicalDebtByContext(findings);
 
   return {
     score,
     maxScore: 100,
     estimatedTechnicalDebtDays,
+    estimatedTechnicalDebtByContext,
     categoryScores,
     dddCompliance: toStatus(byCategory("dddPatterns")),
     hexagonalBoundaries: toStatus([

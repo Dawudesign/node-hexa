@@ -12,7 +12,7 @@ beforeEach(() => {
   // Simulate a node-hexa project root (required by assertInsideProject)
   fs.writeFileSync(
     path.join(tmpDir, "package.json"),
-    JSON.stringify({ name: "test-app", dependencies: { "@nestjs/core": "^10.0.0" } }),
+    JSON.stringify({ name: "test-app" }),
   );
   fs.writeFileSync(
     path.join(tmpDir, "node-hexa.config.json"),

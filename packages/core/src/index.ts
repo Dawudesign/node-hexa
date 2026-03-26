@@ -49,7 +49,9 @@ function detectKind(name: string, decorators: string[], filePath: string): Compo
   if (name.endsWith("Service")) return "service";
   if (name.endsWith("Port")) return "port";
   if (name.endsWith("Adapter")) return "adapter";
-  if (name.endsWith("Module")) return "module";
+  // "Module" suffix alone is not enough — only classify as module if the @Module decorator
+  // is present (NestJS-specific). Plain classes named *Module in Next.js or non-NestJS
+  // projects must not trigger the NestJS module misplacement rule.
   if (
     name.endsWith("Vo") ||
     name.endsWith("ValueObject") ||

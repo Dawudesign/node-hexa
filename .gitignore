@@ -35,3 +35,4 @@ pnpm-debug.log*
 
 # Chrome binary (already huge, no need to track)
 chrome/
+.claude/

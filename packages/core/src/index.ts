@@ -193,6 +193,7 @@ export { generateProject } from "./init";
 export { generateDemoProject } from "./demo";
 export { generateContext } from "./generate-context";
 export { generateUseCase } from "./generate-usecase";
+export { generateDomainEvent } from "./generate-event";
 export { generateAggregate } from "./generate-aggregate";
 export { listContexts } from "./list";
 export type { ContextSummary } from "./list";

@@ -17,6 +17,7 @@ export function generateContext(name: string) {
   const dirs = [
     "domain/entities",
     "domain/value-objects",
+    "domain/events",
     "domain/ports",
     "application/use-cases",
     "infrastructure/http",
@@ -29,6 +30,7 @@ export function generateContext(name: string) {
 
   // Keep empty dirs tracked by git
   fs.writeFileSync(path.join(base, "domain/value-objects/.gitkeep"), "");
+  fs.writeFileSync(path.join(base, "domain/events/.gitkeep"), "");
 
   const pascal = capitalize(name);
   const token = `${name.toUpperCase().replaceAll('-', "_")}_REPOSITORY_PORT`;

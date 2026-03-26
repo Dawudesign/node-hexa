@@ -1,8 +1,26 @@
 import type { ArchitectureModel, ArchitectureNode } from "@node-hexa/model";
 
+/**
+ * Derive a Mermaid-safe unique node ID from the file path.
+ * Ensures two nodes with the same class name in different contexts
+ * are rendered as distinct nodes in the graph.
+ */
+function nodeId(node: ArchitectureNode): string {
+  return node.filePath
+    .replace(/\\/g, "/")
+    .replace(/\.tsx?$/, "")
+    .replace(/[^a-zA-Z0-9]/g, "_")
+    .replace(/_{2,}/g, "_")
+    .replace(/^_|_$/g, "");
+}
+
 function generateSubgraph(label: string, nodes: ArchitectureNode[]): string[] {
   if (!nodes.length) return [];
-  return [`\nsubgraph ${label}`, ...nodes.map((n) => `  ${n.name}`), "end"];
+  return [
+    `\nsubgraph ${label}`,
+    ...nodes.map((n) => `  ${nodeId(n)}["${n.name}"]`),
+    "end",
+  ];
 }
 
 /**
@@ -11,11 +29,11 @@ function generateSubgraph(label: string, nodes: ArchitectureNode[]): string[] {
  * each other — not just nodes that share a filename across different contexts.
  */
 function resolveImportPath(imp: string, sourceFilePath: string): string | null {
-  if (!imp.startsWith(".")) return null; // external package — skip
+  if (!imp.startsWith(".")) return null;
 
   const normalizedImp = imp.replace(/\.(ts|tsx|d\.ts)$/, "");
   const sourceParts = sourceFilePath.replace(/\\/g, "/").split("/");
-  sourceParts.pop(); // remove filename, keep directory
+  sourceParts.pop();
 
   const impParts = normalizedImp.split("/");
   const combined = [...sourceParts];
@@ -50,10 +68,10 @@ function generateEdges(nodes: ArchitectureNode[]): string[] {
           targetPathNoExt === resolvedImp ||
           targetPathNoExt === resolvedImp + "/index"
         ) {
-          const edgeKey = `${node.name}-->${target.name}`;
+          const edgeKey = `${nodeId(node)}-->${nodeId(target)}`;
           if (!seen.has(edgeKey)) {
             seen.add(edgeKey);
-            lines.push(`${node.name} --> ${target.name}`);
+            lines.push(`${nodeId(node)} --> ${nodeId(target)}`);
           }
         }
       }

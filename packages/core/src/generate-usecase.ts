@@ -95,7 +95,7 @@ export class ${className} {
   fs.writeFileSync(
     dtoPath,
     `export interface ${className}Dto {
-  id: string;
+  // TODO: define the fields required by this use case
 }
 `,
   );
@@ -108,7 +108,7 @@ import { ${className} } from './${name}.usecase';
 describe('${className}', () => {
   it('should execute without errors', async () => {
     const usecase = new ${className}(${port ? `{} as any` : ""});
-    await expect(usecase.execute({ id: '1' })).resolves.toBeUndefined();
+    await expect(usecase.execute({})).resolves.toBeUndefined();
   });
 });
 `,

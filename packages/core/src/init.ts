@@ -113,17 +113,26 @@ export class InMemory${pascal}Repository implements ${pascal}RepositoryPort {
   );
 
   fs.writeFileSync(
+    path.join(contextRoot, "application", "use-cases", `create-${context}.dto.ts`),
+`export interface Create${pascal}Dto {
+  name: string;
+}
+`,
+  );
+
+  fs.writeFileSync(
     path.join(contextRoot, "infrastructure", "http", `${context}.controller.ts`),
 `import { Body, Controller, Post } from '@nestjs/common';
 import { Create${pascal}UseCase } from '../../application/use-cases/create-${context}.usecase';
+import { Create${pascal}Dto } from '../../application/use-cases/create-${context}.dto';
 
 @Controller('${context}')
 export class ${pascal}Controller {
   constructor(private readonly createUseCase: Create${pascal}UseCase) {}
 
   @Post()
-  async create(@Body() body: { name: string }) {
-    return this.createUseCase.execute(body.name);
+  async create(@Body() dto: Create${pascal}Dto) {
+    return this.createUseCase.execute(dto.name);
   }
 }
 `,

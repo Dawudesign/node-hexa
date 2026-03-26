@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { generateContext, generateUseCase, generateAggregate } from "./index";
+import { generateContext, generateUseCase, generateAggregate, generateDomainEvent } from "./index";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -42,6 +42,7 @@ describe("generateContext", () => {
     expect(fs.existsSync(path.join(base, "infrastructure/http/orders.controller.ts"))).toBe(true);
     expect(fs.existsSync(path.join(base, "infrastructure/persistence/in-memory-orders.repository.ts"))).toBe(true);
     expect(fs.existsSync(path.join(base, "orders.module.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(base, "domain/events/.gitkeep"))).toBe(true);
   });
 
   it("DTO is in a separate file, not inlined in the use case", () => {
@@ -232,5 +233,52 @@ describe("generateUseCase", () => {
 
   it("throws if use case name is not kebab-case", () => {
     expect(() => generateUseCase("DeleteUser", "iam")).toThrowError(/Invalid use case name/);
+  });
+});
+
+// ─── generateDomainEvent ──────────────────────────────────────────────────────
+
+describe("generateDomainEvent", () => {
+  beforeEach(() => {
+    fs.mkdirSync(path.join(tmpDir, "src", "contexts", "orders"), { recursive: true });
+  });
+
+  it("creates the event file in domain/events/", () => {
+    generateDomainEvent("order-placed", "orders");
+    const eventFile = path.join(
+      tmpDir,
+      "src/contexts/orders/domain/events/order-placed.event.ts",
+    );
+    expect(fs.existsSync(eventFile)).toBe(true);
+  });
+
+  it("generates a class ending in DomainEvent", () => {
+    generateDomainEvent("order-placed", "orders");
+    const content = fs.readFileSync(
+      path.join(tmpDir, "src/contexts/orders/domain/events/order-placed.event.ts"),
+      "utf8",
+    );
+    expect(content).toContain("class OrderPlacedDomainEvent");
+    expect(content).toContain("aggregateId: string");
+    expect(content).toContain("occurredOn: Date");
+  });
+
+  it("throws if the context does not exist", () => {
+    expect(() => generateDomainEvent("order-placed", "missing-ctx")).toThrowError(
+      /does not exist/,
+    );
+  });
+
+  it("throws if the event already exists", () => {
+    generateDomainEvent("order-placed", "orders");
+    expect(() => generateDomainEvent("order-placed", "orders")).toThrowError(
+      /already exists/,
+    );
+  });
+
+  it("throws if event name is not kebab-case", () => {
+    expect(() => generateDomainEvent("OrderPlaced", "orders")).toThrowError(
+      /Invalid event name/,
+    );
   });
 });

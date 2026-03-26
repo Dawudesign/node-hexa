@@ -17,6 +17,7 @@ export function generateContext(name: string) {
   const dirs = [
     "domain/entities",
     "domain/value-objects",
+    "domain/events",
     "domain/ports",
     "application/use-cases",
     "infrastructure/http",
@@ -29,13 +30,14 @@ export function generateContext(name: string) {
 
   // Keep empty dirs tracked by git
   fs.writeFileSync(path.join(base, "domain/value-objects/.gitkeep"), "");
+  fs.writeFileSync(path.join(base, "domain/events/.gitkeep"), "");
 
   const pascal = capitalize(name);
   const token = `${name.toUpperCase().replaceAll('-', "_")}_REPOSITORY_PORT`;
 
   fs.writeFileSync(
     path.join(base, "domain/entities", `${name}.entity.ts`),
-    `export class ${pascal} {
+    `export class ${pascal}Entity {
   constructor(public readonly id: string) {}
 }
 `,
@@ -43,13 +45,21 @@ export function generateContext(name: string) {
 
   fs.writeFileSync(
     path.join(base, "domain/ports", `${name}.repository.port.ts`),
-    `import { ${pascal} } from '../entities/${name}.entity';
+    `import { ${pascal}Entity } from '../entities/${name}.entity';
 
 export const ${token} = Symbol('${pascal}RepositoryPort');
 
 export interface ${pascal}RepositoryPort {
-  save(entity: ${pascal}): Promise<void>;
-  findById(id: string): Promise<${pascal} | null>;
+  save(entity: ${pascal}Entity): Promise<void>;
+  findById(id: string): Promise<${pascal}Entity | null>;
+}
+`,
+  );
+
+  fs.writeFileSync(
+    path.join(base, "application/use-cases", `create-${name}.dto.ts`),
+    `export interface Create${pascal}Dto {
+  id?: string;
 }
 `,
   );
@@ -57,16 +67,13 @@ export interface ${pascal}RepositoryPort {
   fs.writeFileSync(
     path.join(base, "application/use-cases", `create-${name}.usecase.ts`),
     `import { Inject, Injectable } from '@nestjs/common';
-import { ${pascal} } from '../../domain/entities/${name}.entity';
+import { ${pascal}Entity } from '../../domain/entities/${name}.entity';
 import {
   ${token},
   ${pascal}RepositoryPort,
 } from '../../domain/ports/${name}.repository.port';
+import { Create${pascal}Dto } from './create-${name}.dto';
 import { randomUUID } from 'node:crypto';
-
-export interface Create${pascal}Dto {
-  id?: string;
-}
 
 @Injectable()
 export class Create${pascal}UseCase {
@@ -75,8 +82,8 @@ export class Create${pascal}UseCase {
     private readonly repository: ${pascal}RepositoryPort,
   ) {}
 
-  async execute(dto: Create${pascal}Dto = {}): Promise<${pascal}> {
-    const entity = new ${pascal}(dto.id ?? randomUUID());
+  async execute(dto: Create${pascal}Dto = {}): Promise<${pascal}Entity> {
+    const entity = new ${pascal}Entity(dto.id ?? randomUUID());
     await this.repository.save(entity);
     return entity;
   }
@@ -85,9 +92,36 @@ export class Create${pascal}UseCase {
   );
 
   fs.writeFileSync(
+    path.join(base, "application/use-cases", `create-${name}.usecase.spec.ts`),
+    `import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Create${pascal}UseCase } from './create-${name}.usecase';
+
+const mockRepository = {
+  save: vi.fn(),
+  findById: vi.fn(),
+};
+
+describe('Create${pascal}UseCase', () => {
+  let useCase: Create${pascal}UseCase;
+
+  beforeEach(() => {
+    useCase = new Create${pascal}UseCase(mockRepository as any);
+  });
+
+  it('should create and persist a ${pascal}', async () => {
+    const result = await useCase.execute({});
+    expect(result.id).toBeDefined();
+    expect(mockRepository.save).toHaveBeenCalledWith(result);
+  });
+});
+`,
+  );
+
+  fs.writeFileSync(
     path.join(base, "infrastructure/http", `${name}.controller.ts`),
     `import { Body, Controller, Post } from '@nestjs/common';
-import { Create${pascal}UseCase, Create${pascal}Dto } from '../../application/use-cases/create-${name}.usecase';
+import { Create${pascal}UseCase } from '../../application/use-cases/create-${name}.usecase';
+import { Create${pascal}Dto } from '../../application/use-cases/create-${name}.dto';
 
 @Controller('${name}')
 export class ${pascal}Controller {
@@ -108,18 +142,18 @@ export class ${pascal}Controller {
       `in-memory-${name}.repository.ts`,
     ),
     `import { Injectable } from '@nestjs/common';
-import { ${pascal} } from '../../domain/entities/${name}.entity';
+import { ${pascal}Entity } from '../../domain/entities/${name}.entity';
 import { ${pascal}RepositoryPort } from '../../domain/ports/${name}.repository.port';
 
 @Injectable()
 export class InMemory${pascal}Repository implements ${pascal}RepositoryPort {
-  private readonly store = new Map<string, ${pascal}>();
+  private readonly store = new Map<string, ${pascal}Entity>();
 
-  async save(entity: ${pascal}): Promise<void> {
+  async save(entity: ${pascal}Entity): Promise<void> {
     this.store.set(entity.id, entity);
   }
 
-  async findById(id: string): Promise<${pascal} | null> {
+  async findById(id: string): Promise<${pascal}Entity | null> {
     return this.store.get(id) ?? null;
   }
 }

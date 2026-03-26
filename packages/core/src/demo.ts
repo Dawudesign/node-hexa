@@ -5,7 +5,7 @@ export function generateDemoProject(dirName = "node-hexa-demo"): string {
   const dest = path.join(process.cwd(), dirName);
 
   if (fs.existsSync(dest)) {
-    throw new Error(`Demo directory \"${dirName}\" already exists. Remove it first or choose a different folder.`);
+    throw new Error(`Demo directory "${dirName}" already exists. Remove it first or choose a different folder.`);
   }
 
   fs.mkdirSync(path.join(dest, "src", "contexts", "good", "domain", "entities"), { recursive: true });

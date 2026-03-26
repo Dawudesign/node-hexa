@@ -12,7 +12,7 @@ export function detectContexts(nodes: ArchitectureNode[]): ContextMap {
     const parts = path.normalize(node.filePath).split(path.sep);
 
     const contextIndex = parts.findIndex((p) =>
-      ["domain", "application", "infrastructure"].includes(p)
+      ["domain", "application", "infrastructure", "adapters", "adapter-in", "adapter-out"].includes(p)
     );
 
     if (contextIndex <= 0) continue;

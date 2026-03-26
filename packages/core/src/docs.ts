@@ -8,6 +8,10 @@ type AnalysisResult = {
   model: { nodes: ArchitectureNode[] };
   violations: RuleViolation[];
   score: { score: number; max: number };
+  cleanViolations?: RuleViolation[];
+  cleanScore?: { score: number; max: number };
+  greenViolations?: RuleViolation[];
+  greenScore?: { score: number; max: number };
 };
 
 export function generateDocs(result: AnalysisResult, projectPath?: string): string {
@@ -16,6 +20,8 @@ export function generateDocs(result: AnalysisResult, projectPath?: string): stri
   const domain = result.model.nodes.filter((n) => n.layer === "domain");
   const application = result.model.nodes.filter((n) => n.layer === "application");
   const infrastructure = result.model.nodes.filter((n) => n.layer === "infrastructure");
+  const adapterIn = result.model.nodes.filter((n) => n.layer === "adapter-in");
+  const adapterOut = result.model.nodes.filter((n) => n.layer === "adapter-out");
 
   let doc = "# Architecture Documentation\n\n";
 
@@ -39,6 +45,20 @@ export function generateDocs(result: AnalysisResult, projectPath?: string): stri
     doc += `- **${n.name}** (${n.kind}) — \`${n.filePath}\`\n`;
   });
 
+  if (adapterIn.length) {
+    doc += "\n## Adapter In (HTTP / Controllers)\n";
+    adapterIn.forEach((n) => {
+      doc += `- **${n.name}** (${n.kind}) — \`${n.filePath}\`\n`;
+    });
+  }
+
+  if (adapterOut.length) {
+    doc += "\n## Adapter Out (Persistence / Repositories)\n";
+    adapterOut.forEach((n) => {
+      doc += `- **${n.name}** (${n.kind}) — \`${n.filePath}\`\n`;
+    });
+  }
+
   doc += "\n## Violations\n";
 
   if (result.violations.length === 0) {
@@ -49,8 +69,28 @@ export function generateDocs(result: AnalysisResult, projectPath?: string): stri
     });
   }
 
-  doc += `\n## Architecture Score\n\n`;
-  doc += `**${result.score.score} / ${result.score.max}**\n`;
+  if (result.cleanViolations && result.cleanViolations.length > 0) {
+    doc += "\n## Clean Code Violations\n";
+    result.cleanViolations.forEach((v) => {
+      doc += `- ✗ **${v.message}** — \`${v.node}\` (${v.filePath})\n`;
+    });
+  }
+
+  if (result.greenViolations && result.greenViolations.length > 0) {
+    doc += "\n## Green Code Violations\n";
+    result.greenViolations.forEach((v) => {
+      doc += `- ✗ **${v.message}** — \`${v.node}\` (${v.filePath})\n`;
+    });
+  }
+
+  doc += `\n## Scores\n\n`;
+  doc += `- Architecture: **${result.score.score} / ${result.score.max}**\n`;
+  if (result.cleanScore) {
+    doc += `- Clean Code: **${result.cleanScore.score} / ${result.cleanScore.max}**\n`;
+  }
+  if (result.greenScore) {
+    doc += `- Green Code: **${result.greenScore.score} / ${result.greenScore.max}**\n`;
+  }
 
   if (projectPath) {
     const outputPath = path.join(projectPath, "architecture.md");

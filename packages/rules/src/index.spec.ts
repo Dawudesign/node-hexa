@@ -81,6 +81,50 @@ describe("runRules", () => {
     const violations = runRules(model);
     expect(violations.some((v) => v.message.includes("Application must not depend on infrastructure"))).toBe(true);
   });
+
+  it("flags adapter-in → adapter-out (controller bypasses use case)", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeTypedNode(
+          "UserRepository",
+          "adapter-out",
+          "repository",
+          "src/contexts/iam/infrastructure/persistence/user.repository.ts",
+        ),
+        makeTypedNode(
+          "UserController",
+          "adapter-in",
+          "controller",
+          "src/contexts/iam/infrastructure/http/user.controller.ts",
+          ["../persistence/user.repository"],
+        ),
+      ],
+    };
+    const violations = runRules(model);
+    expect(violations.some((v) => v.message.includes("Adapter-in must not depend on adapter-out"))).toBe(true);
+  });
+
+  it("allows adapter-in → application (controller uses use case)", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeTypedNode(
+          "CreateUserUseCase",
+          "application",
+          "use-case",
+          "src/contexts/iam/application/use-cases/create-user.usecase.ts",
+        ),
+        makeTypedNode(
+          "UserController",
+          "adapter-in",
+          "controller",
+          "src/contexts/iam/infrastructure/http/user.controller.ts",
+          ["../../application/use-cases/create-user.usecase"],
+        ),
+      ],
+    };
+    const violations = runRules(model);
+    expect(violations.filter((v) => v.message.includes("Adapter-in"))).toHaveLength(0);
+  });
 });
 
 describe("computeScore", () => {
@@ -177,6 +221,26 @@ describe("checkMisplacement", () => {
     expect(violations.some((v) => v.message.includes("Repository implementation must not live in domain layer"))).toBe(true);
   });
 
+  it("flags domain-event outside domain layer", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeTypedNode("UserCreatedEvent", "application", "domain-event", "src/contexts/iam/application/user-created.event.ts"),
+      ],
+    };
+    const violations = runRules(model);
+    expect(violations.some((v) => v.message.includes("Domain event must live in domain layer"))).toBe(true);
+  });
+
+  it("does not flag domain-event correctly placed in domain layer", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeTypedNode("UserCreatedEvent", "domain", "domain-event", "src/contexts/iam/domain/events/user-created.event.ts"),
+      ],
+    };
+    const violations = runRules(model);
+    expect(violations.filter((v) => v.message.includes("Domain event"))).toHaveLength(0);
+  });
+
   it("flags NestJS module in domain layer", () => {
     const model: ArchitectureModel = {
       nodes: [
@@ -184,7 +248,7 @@ describe("checkMisplacement", () => {
       ],
     };
     const violations = runRules(model);
-    expect(violations.some((v) => v.message.includes("NestJS Module"))).toBe(true);
+    expect(violations.some((v) => v.message.includes("Module (composition root)"))).toBe(true);
   });
 
   it("flags NestJS module in application layer", () => {
@@ -194,7 +258,7 @@ describe("checkMisplacement", () => {
       ],
     };
     const violations = runRules(model);
-    expect(violations.some((v) => v.message.includes("NestJS Module"))).toBe(true);
+    expect(violations.some((v) => v.message.includes("Module (composition root)"))).toBe(true);
   });
 
   it("does not flag entity correctly placed in domain", () => {
@@ -214,7 +278,7 @@ describe("checkMisplacement", () => {
       ],
     };
     const violations = runRules(model);
-    expect(violations.filter((v) => v.message.includes("NestJS Module"))).toHaveLength(0);
+    expect(violations.filter((v) => v.message.includes("Module (composition root)"))).toHaveLength(0);
   });
 
   it("violation includes a suggestion", () => {
@@ -474,6 +538,30 @@ describe("runCleanCodeRules", () => {
     const violations = runCleanCodeRules(model).filter((v) => v.message.includes("imports"));
     expect(violations).toHaveLength(1);
   });
+
+  it("flags value object with mutable public properties", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode("EmailVo", "domain", "value-object",
+          "src/contexts/iam/domain/value-objects/email.vo.ts",
+          { hasMutablePublicProperties: true, lineCount: 20, methodCount: 1, constructorParamCount: 1 }),
+      ],
+    };
+    const violations = runCleanCodeRules(model);
+    expect(violations.some((v) => v.message.includes("mutable public properties"))).toBe(true);
+  });
+
+  it("does not flag value object with only readonly properties", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode("EmailVo", "domain", "value-object",
+          "src/contexts/iam/domain/value-objects/email.vo.ts",
+          { hasMutablePublicProperties: false, lineCount: 20, methodCount: 1, constructorParamCount: 1 }),
+      ],
+    };
+    const violations = runCleanCodeRules(model);
+    expect(violations.filter((v) => v.message.includes("mutable"))).toHaveLength(0);
+  });
 });
 
 // ─── runGreenCodeRules ────────────────────────────────────────────────────────
@@ -539,5 +627,96 @@ describe("runGreenCodeRules", () => {
     };
     const violations = runGreenCodeRules(model).filter((v) => v.message.includes("lines"));
     expect(violations).toHaveLength(1);
+  });
+});
+
+// ─── cyclic import detection ──────────────────────────────────────────────────
+
+describe("cyclic import detection", () => {
+  it("flags a direct A → B → A cycle", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeTypedNode(
+          "ServiceA",
+          "application",
+          "service",
+          "src/contexts/iam/application/service-a.ts",
+          ["./service-b"],
+        ),
+        makeTypedNode(
+          "ServiceB",
+          "application",
+          "service",
+          "src/contexts/iam/application/service-b.ts",
+          ["./service-a"],
+        ),
+      ],
+    };
+    const violations = runRules(model);
+    expect(violations.some((v) => v.message.includes("Cyclic import"))).toBe(true);
+  });
+
+  it("does not flag a DAG (no cycles)", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeTypedNode(
+          "UserEntity",
+          "domain",
+          "entity",
+          "src/contexts/iam/domain/entities/user.entity.ts",
+        ),
+        makeTypedNode(
+          "CreateUserUseCase",
+          "application",
+          "use-case",
+          "src/contexts/iam/application/use-cases/create-user.usecase.ts",
+          ["../../domain/entities/user.entity"],
+        ),
+      ],
+    };
+    const violations = runRules(model).filter((v) =>
+      v.message.includes("Cyclic import"),
+    );
+    expect(violations).toHaveLength(0);
+  });
+});
+
+// ─── entity identity rule ─────────────────────────────────────────────────────
+
+describe("entity identity rule", () => {
+  it("flags entity without id property", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "UserEntity",
+          "domain",
+          "entity",
+          "src/contexts/iam/domain/entities/user.entity.ts",
+          { hasIdProperty: false, lineCount: 10, methodCount: 0, constructorParamCount: 0 },
+        ),
+      ],
+    };
+    const violations = runRules(model);
+    expect(
+      violations.some((v) => v.message.includes("has no 'id' property")),
+    ).toBe(true);
+  });
+
+  it("does not flag entity with id property", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "UserEntity",
+          "domain",
+          "entity",
+          "src/contexts/iam/domain/entities/user.entity.ts",
+          { hasIdProperty: true, lineCount: 10, methodCount: 0, constructorParamCount: 1 },
+        ),
+      ],
+    };
+    const violations = runRules(model).filter((v) =>
+      v.message.includes("id property"),
+    );
+    expect(violations).toHaveLength(0);
   });
 });

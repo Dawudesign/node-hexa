@@ -135,6 +135,37 @@ export function validateConfig(projectPath: string): ConfigIssue[] {
     }
   }
 
+  // 4. Validate ignoredRules entries against known NXH rule IDs
+  let rawJson: Record<string, unknown> = {};
+  try {
+    rawJson = JSON.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
+  } catch {
+    // already handled above
+  }
+  const rulesSection = (rawJson.rules && typeof rawJson.rules === "object")
+    ? rawJson.rules as Record<string, unknown>
+    : {};
+  const ignoredRules = Array.isArray(rulesSection.ignoredRules)
+    ? (rulesSection.ignoredRules as unknown[]).filter((r): r is string => typeof r === "string")
+    : [];
+
+  const KNOWN_RULE_IDS = new Set([
+    "NXH001", "NXH002", "NXH003", "NXH004", "NXH005",
+    "NXH006", "NXH007", "NXH008", "NXH009", "NXH010",
+    "NXH011", "NXH012", "NXH013",
+  ]);
+
+  for (const ruleId of ignoredRules) {
+    if (!KNOWN_RULE_IDS.has(ruleId.trim().toUpperCase())) {
+      issues.push({
+        field: "rules.ignoredRules",
+        message: `Unknown rule ID '${ruleId}' in ignoredRules — this suppression has no effect`,
+        suggestion: `Remove '${ruleId}' or use a valid ID. Known IDs: ${[...KNOWN_RULE_IDS].join(", ")}`,
+        severity: "warning",
+      });
+    }
+  }
+
   return issues;
 }
 

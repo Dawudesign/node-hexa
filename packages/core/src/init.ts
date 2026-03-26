@@ -113,17 +113,26 @@ export class InMemory${pascal}Repository implements ${pascal}RepositoryPort {
   );
 
   fs.writeFileSync(
+    path.join(contextRoot, "application", "use-cases", `create-${context}.dto.ts`),
+`export interface Create${pascal}Dto {
+  name: string;
+}
+`,
+  );
+
+  fs.writeFileSync(
     path.join(contextRoot, "infrastructure", "http", `${context}.controller.ts`),
 `import { Body, Controller, Post } from '@nestjs/common';
 import { Create${pascal}UseCase } from '../../application/use-cases/create-${context}.usecase';
+import { Create${pascal}Dto } from '../../application/use-cases/create-${context}.dto';
 
 @Controller('${context}')
 export class ${pascal}Controller {
   constructor(private readonly createUseCase: Create${pascal}UseCase) {}
 
   @Post()
-  async create(@Body() body: { name: string }) {
-    return this.createUseCase.execute(body.name);
+  async create(@Body() dto: Create${pascal}Dto) {
+    return this.createUseCase.execute(dto.name);
   }
 }
 `,
@@ -173,12 +182,11 @@ export class AppModule {}
   );
 }
 
-function writeCiFiles(base: string): void {
+function writeCiFiles(base: string, pm: "npm" | "pnpm"): void {
   fs.mkdirSync(path.join(base, ".github", "workflows"), { recursive: true });
 
-  fs.writeFileSync(
-    path.join(base, ".github", "workflows", "node-hexa.yml"),
-`name: node-hexa
+  const githubWorkflow = pm === "pnpm"
+    ? `name: node-hexa
 
 on:
   push:
@@ -197,14 +205,36 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm -r build
+      - run: pnpm build
       - run: npx @dawudesign/node-hexa-cli audit . --fail-under 80
-`,
-  );
+`
+    : `name: node-hexa
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  node-hexa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx @dawudesign/node-hexa-cli audit . --fail-under 80
+`;
 
   fs.writeFileSync(
-    path.join(base, ".gitlab-ci.yml"),
-`stages:
+    path.join(base, ".github", "workflows", "node-hexa.yml"),
+    githubWorkflow,
+  );
+
+  const gitlabCi = pm === "pnpm"
+    ? `stages:
   - install
   - build
   - audit
@@ -221,7 +251,7 @@ build:
   stage: build
   script:
     - corepack enable
-    - pnpm -r build
+    - pnpm build
 
 audit:
   image: node:20
@@ -229,11 +259,43 @@ audit:
   script:
     - corepack enable
     - npx @dawudesign/node-hexa-cli audit . --fail-under 80
-`,
+`
+    : `stages:
+  - install
+  - build
+  - audit
+
+install:
+  image: node:20
+  stage: install
+  script:
+    - npm ci
+
+build:
+  image: node:20
+  stage: build
+  script:
+    - npm run build
+
+audit:
+  image: node:20
+  stage: audit
+  script:
+    - npx @dawudesign/node-hexa-cli audit . --fail-under 80
+`;
+
+  fs.writeFileSync(
+    path.join(base, ".gitlab-ci.yml"),
+    gitlabCi,
   );
 }
 
-function writeAdoptionDocs(base: string, template: ProjectTemplate, withCi: boolean): void {
+function writeAdoptionDocs(base: string, template: ProjectTemplate, withCi: boolean, pm: "npm" | "pnpm"): void {
+  const installCmd = pm === "pnpm" ? "pnpm install" : "npm install";
+  const startCmd = pm === "pnpm" ? "pnpm start:dev" : "npm run start:dev";
+  const frozenInstall = pm === "pnpm" ? "pnpm install --frozen-lockfile" : "npm ci";
+  const buildCmd = pm === "pnpm" ? "pnpm build" : "npm run build";
+
   fs.writeFileSync(
     path.join(base, "GETTING_STARTED.md"),
 `# Getting Started
@@ -241,9 +303,9 @@ function writeAdoptionDocs(base: string, template: ProjectTemplate, withCi: bool
 Template: ${template}
 
 1. Install dependencies
-   - pnpm install
+   - ${installCmd}
 2. Run the app
-   - pnpm start:dev
+   - ${startCmd}
 3. Run architecture governance
    - npx @dawudesign/node-hexa-cli audit . --fail-under 80
 `,
@@ -257,8 +319,8 @@ CI templates generated: ${withCi ? "yes" : "no"}
 
 Recommended pipeline steps:
 
-1. pnpm install --frozen-lockfile
-2. pnpm -r build
+1. ${frozenInstall}
+2. ${buildCmd}
 3. npx @dawudesign/node-hexa-cli audit . --fail-under 80
 `,
   );
@@ -365,10 +427,10 @@ export class AppModule {}
   writeTemplateScaffold(base, template);
 
   if (withCi) {
-    writeCiFiles(base);
+    writeCiFiles(base, pm);
   }
 
-  writeAdoptionDocs(base, template, withCi);
+  writeAdoptionDocs(base, template, withCi, pm);
 
   // ─── node-hexa.config.json ──────────────────────────────────────────────────
   fs.writeFileSync(
@@ -389,5 +451,5 @@ export class AppModule {}
   if (withCi) {
     console.log("  CI templates generated: .github/workflows/node-hexa.yml and .gitlab-ci.yml");
   }
-  console.log(`  cd ${name} && pnpm start:dev`);
+  console.log(`  cd ${name} && ${pm === "pnpm" ? "pnpm start:dev" : "npm run start:dev"}`);
 }

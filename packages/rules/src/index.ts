@@ -110,6 +110,18 @@ function checkLayerViolation(
       suggestion:
         "Inject a port interface (declared in domain/ports/) instead — let the module wire the concrete adapter",
     });
+    return;
+  }
+
+  if (node.layer === "adapter-in" && target.layer === "adapter-out") {
+    violations.push({
+      message: "Adapter-in must not depend on adapter-out",
+      node: node.name,
+      filePath: node.filePath,
+      severity: "high",
+      suggestion:
+        "Controllers (adapter-in) must invoke use cases, not repository adapters directly — route through application/use-cases/ and inject a port",
+    });
   }
 }
 
@@ -168,7 +180,12 @@ function checkFrameworkViolations(
 
 /**
  * Infer component kind purely from directory name conventions.
- * Used as a fallback when name-based and decorator-based detection returns "unknown".
+ * Used as a fallback inside misplacement checks when the node kind is "unknown".
+ *
+ * Intentionally wider than kindFromLocation in @node-hexa/core: misplacement
+ * checks must catch components that the parser/name-based detector could not
+ * label (e.g. files in persistence/ or http/ folders without a typed name).
+ * Do NOT merge with kindFromLocation — the two serve different purposes.
  */
 function kindFromPath(filePath: string): import("@node-hexa/model").ComponentKind {
   const dir = filePath.replaceAll("\\", "/").toLowerCase();
@@ -256,15 +273,38 @@ function checkMisplacement(
     return;
   }
 
-  if (effectiveKind === "module" && (layer === "domain" || layer === "application")) {
+  if (effectiveKind === "domain-event" && layer !== "domain") {
     violations.push({
-      message:
-        "NestJS Module (composition root) must not live in domain or application layer",
+      message: "Domain event must live in domain layer",
+      node: name,
+      filePath,
+      severity: "critical",
+      suggestion:
+        "Move to contexts/<ctx>/domain/events/ — domain events are part of the ubiquitous language and must remain framework-free",
+    });
+    return;
+  }
+
+  if (effectiveKind === "entity" && layer === "domain" && node.metrics?.hasIdProperty === false) {
+    violations.push({
+      message: `Entity '${name}' has no 'id' property — aggregate roots must have a unique identity`,
       node: name,
       filePath,
       severity: "high",
       suggestion:
-        "Move to the context root: contexts/<ctx>/<ctx>.module.ts — modules wire infrastructure and must not pollute domain or application",
+        "Add a public readonly 'id' property (or constructor parameter) to uniquely identify this entity. Use a value object (e.g. UserId) for strong typing.",
+    });
+  }
+
+  if (effectiveKind === "module" && (layer === "domain" || layer === "application")) {
+    violations.push({
+      message:
+        "Module (composition root) must not live in domain or application layer",
+      node: name,
+      filePath,
+      severity: "high",
+      suggestion:
+        "Move to the context root: contexts/<ctx>/<ctx>.module.ts — composition root modules wire infrastructure and must not pollute domain or application",
     });
   }
 }
@@ -293,6 +333,71 @@ function checkCrossContextImport(
   }
 }
 
+// ─── Cyclic import rules ──────────────────────────────────────────────────────
+
+function checkCyclicImports(
+  model: ArchitectureModel,
+  violations: RuleViolation[],
+): void {
+  const visited = new Set<string>();
+  const inStack = new Set<string>();
+  const stackPath: ArchitectureNode[] = [];
+  const reportedCycles = new Set<string>();
+
+  function dfs(node: ArchitectureNode): void {
+    const key = node.filePath.toLowerCase();
+
+    if (inStack.has(key)) {
+      const cycleStartIdx = stackPath.findIndex(
+        (n) => n.filePath.toLowerCase() === key,
+      );
+      if (cycleStartIdx === -1) return;
+
+      const cycleNodes = stackPath.slice(cycleStartIdx);
+      const signature = cycleNodes
+        .map((n) => n.filePath)
+        .sort()
+        .join("|");
+      if (reportedCycles.has(signature)) return;
+      reportedCycles.add(signature);
+
+      const cyclePath =
+        cycleNodes.map((n) => n.name).join(" → ") + " → " + node.name;
+      violations.push({
+        message: `Cyclic import detected: ${cyclePath}`,
+        node: cycleNodes[0].name,
+        filePath: cycleNodes[0].filePath,
+        severity: "high",
+        suggestion:
+          "Break the cycle by extracting a shared abstraction (port interface or DTO) that both sides can depend on without creating a circular reference",
+      });
+      return;
+    }
+
+    if (visited.has(key)) return;
+
+    inStack.add(key);
+    stackPath.push(node);
+
+    for (const imp of node.imports) {
+      const target = findNodeByImport(imp, node.filePath, model.nodes);
+      if (target) {
+        dfs(target);
+      }
+    }
+
+    stackPath.pop();
+    inStack.delete(key);
+    visited.add(key);
+  }
+
+  for (const node of model.nodes) {
+    if (!visited.has(node.filePath.toLowerCase())) {
+      dfs(node);
+    }
+  }
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export function runRules(
@@ -313,6 +418,8 @@ export function runRules(
     checkFrameworkViolations(node, violations);
     checkMisplacement(node, violations);
   }
+
+  checkCyclicImports(model, violations);
 
   return strict
     ? violations
@@ -345,7 +452,7 @@ export function runCleanCodeRules(model: ArchitectureModel): RuleViolation[] {
   const checkedFiles = new Set<string>();
 
   for (const node of model.nodes) {
-    const { metrics, name, filePath, layer, imports } = node;
+    const { metrics, name, filePath, layer, kind, imports } = node;
 
     // ── File-level checks (once per file) ──────────────────────────────────
     if (!checkedFiles.has(filePath)) {
@@ -405,6 +512,21 @@ export function runCleanCodeRules(model: ArchitectureModel): RuleViolation[] {
         severity: "medium",
         suggestion:
           "Extract focused cohesive methods into a separate class. Each class should have one reason to change.",
+      });
+    }
+
+    // Value object mutability — all public properties must be readonly (DDD immutability rule)
+    if (
+      (kind === "value-object") &&
+      metrics.hasMutablePublicProperties === true
+    ) {
+      violations.push({
+        message: `Value object '${name}' has mutable public properties — value objects must be immutable`,
+        node: name,
+        filePath,
+        severity: "high",
+        suggestion:
+          "Mark all public properties as 'readonly'. Value objects represent concepts without identity — their state must never change after construction.",
       });
     }
   }

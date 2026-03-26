@@ -15,6 +15,7 @@ import {
   generateContext,
   generateUseCase,
   generateAggregate,
+  generateDomainEvent,
   generateDemoProject,
   listContexts,
   readAuditBaseline,
@@ -112,7 +113,7 @@ const program = new Command();
 
 program
   .name("node-hexa")
-  .description("Architecture governance CLI for NestJS")
+  .description("Architecture governance CLI for hexagonal DDD projects")
   .version(CLI_VERSION);
 
 program
@@ -194,8 +195,8 @@ program
 
 program
   .command("generate")
-  .description("Generate a context, use case, or aggregate in an existing project")
-  .argument("<type>", "context | usecase | aggregate")
+  .description("Generate a context, use case, aggregate, or domain event in an existing project")
+  .argument("<type>", "context | usecase | aggregate | event")
   .argument("<name>", "resource name (kebab-case)")
   .argument("[context]", "bounded context name (required for usecase and aggregate)")
   .action((type: string, name: string, context: string | undefined) => {
@@ -209,8 +210,11 @@ program
       } else if (type === "aggregate") {
         if (!context) die("Missing argument: <context> is required for generate aggregate.\n  Usage: node-hexa generate aggregate <name> <context>");
         generateAggregate(name, context);
+      } else if (type === "event") {
+        if (!context) die("Missing argument: <context> is required for generate event.\n  Usage: node-hexa generate event <name> <context>");
+        generateDomainEvent(name, context);
       } else {
-        die(`Unknown type: '${type}'. Use context | usecase | aggregate`);
+        die(`Unknown type: '${type}'. Use context | usecase | aggregate | event`);
       }
     } catch (err) {
       handleError(err);
@@ -465,6 +469,7 @@ program
         if (ctx.valueObjects.length) console.log(`    Value Objects : ${ctx.valueObjects.join(", ")}`);
         if (ctx.ports.length) console.log(`    Ports         : ${ctx.ports.join(", ")}`);
         if (ctx.useCases.length) console.log(`    Use Cases     : ${ctx.useCases.join(", ")}`);
+        if (ctx.domainEvents?.length) console.log(`    Domain Events : ${ctx.domainEvents.join(", ")}`);
         console.log("");
       }
     } catch (err) {

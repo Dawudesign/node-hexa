@@ -1,15 +1,52 @@
 import type { ArchitectureModel, ArchitectureNode } from "@node-hexa/model";
 
-function generateSubgraph(label: string, nodes: ArchitectureNode[]): string[] {
-  if (!nodes.length) return [];
-  return [`\nsubgraph ${label}`, ...nodes.map((n) => `  ${n.name}`), "end"];
+/**
+ * Derive a Mermaid-safe unique node ID from the file path.
+ * Ensures two nodes with the same class name in different contexts
+ * are rendered as distinct nodes in the graph.
+ */
+function nodeId(node: ArchitectureNode): string {
+  return node.filePath
+    .replace(/\\/g, "/")
+    .replace(/\.tsx?$/, "")
+    .replace(/[^a-zA-Z0-9]/g, "_")
+    .replace(/_{2,}/g, "_")
+    .replace(/^_|_$/g, "");
 }
 
-function importsTarget(imp: string, target: ArchitectureNode): boolean {
-  const fileBaseName = target.filePath.split("/").pop()?.replace(".ts", "") ?? "";
-  if (!fileBaseName) return false;
-  const normalizedImp = imp.replace(/\.ts$/, "");
-  return normalizedImp === fileBaseName || normalizedImp.endsWith(`/${fileBaseName}`);
+function generateSubgraph(label: string, nodes: ArchitectureNode[]): string[] {
+  if (!nodes.length) return [];
+  return [
+    `\nsubgraph ${label}`,
+    ...nodes.map((n) => `  ${nodeId(n)}["${n.name}"]`),
+    "end",
+  ];
+}
+
+/**
+ * Resolve a relative import specifier from a source file to an absolute-style
+ * path, so Mermaid edges are drawn only between nodes that genuinely reference
+ * each other — not just nodes that share a filename across different contexts.
+ */
+function resolveImportPath(imp: string, sourceFilePath: string): string | null {
+  if (!imp.startsWith(".")) return null;
+
+  const normalizedImp = imp.replace(/\.(ts|tsx|d\.ts)$/, "");
+  const sourceParts = sourceFilePath.replace(/\\/g, "/").split("/");
+  sourceParts.pop();
+
+  const impParts = normalizedImp.split("/");
+  const combined = [...sourceParts];
+
+  for (const part of impParts) {
+    if (part === "..") {
+      combined.pop();
+    } else if (part !== ".") {
+      combined.push(part);
+    }
+  }
+
+  return combined.join("/");
 }
 
 function generateEdges(nodes: ArchitectureNode[]): string[] {
@@ -18,12 +55,24 @@ function generateEdges(nodes: ArchitectureNode[]): string[] {
 
   for (const node of nodes) {
     for (const imp of node.imports) {
+      const resolvedImp = resolveImportPath(imp, node.filePath);
+      if (!resolvedImp) continue;
+
       for (const target of nodes) {
         if (target === node) continue;
-        const edgeKey = `${node.name}-->${target.name}`;
-        if (!seen.has(edgeKey) && importsTarget(imp, target)) {
-          seen.add(edgeKey);
-          lines.push(`${node.name} --> ${target.name}`);
+        const targetPathNoExt = target.filePath
+          .replace(/\\/g, "/")
+          .replace(/\.(ts|tsx|d\.ts)$/, "");
+
+        if (
+          targetPathNoExt === resolvedImp ||
+          targetPathNoExt === resolvedImp + "/index"
+        ) {
+          const edgeKey = `${nodeId(node)}-->${nodeId(target)}`;
+          if (!seen.has(edgeKey)) {
+            seen.add(edgeKey);
+            lines.push(`${nodeId(node)} --> ${nodeId(target)}`);
+          }
         }
       }
     }

@@ -12,6 +12,7 @@ export type ComponentKind =
   | "repository"
   | "entity"
   | "value-object"
+  | "domain-event"
   | "service"
   | "module"
   | "port"
@@ -25,6 +26,11 @@ export type NodeMetrics = {
   methodCount?: number;
   /** Number of parameters in the primary constructor. */
   constructorParamCount?: number;
+  /**
+   * True when the class declares at least one public non-readonly property.
+   * Used to enforce value object immutability: all observable state must be readonly.
+   */
+  hasMutablePublicProperties?: boolean;
 };
 
 export type ArchitectureNode = {

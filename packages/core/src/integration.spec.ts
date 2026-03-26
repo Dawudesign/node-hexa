@@ -36,10 +36,40 @@ describe("generateContext", () => {
 
     expect(fs.existsSync(path.join(base, "domain/entities/orders.entity.ts"))).toBe(true);
     expect(fs.existsSync(path.join(base, "domain/ports/orders.repository.port.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(base, "application/use-cases/create-orders.dto.ts"))).toBe(true);
     expect(fs.existsSync(path.join(base, "application/use-cases/create-orders.usecase.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(base, "application/use-cases/create-orders.usecase.spec.ts"))).toBe(true);
     expect(fs.existsSync(path.join(base, "infrastructure/http/orders.controller.ts"))).toBe(true);
     expect(fs.existsSync(path.join(base, "infrastructure/persistence/in-memory-orders.repository.ts"))).toBe(true);
     expect(fs.existsSync(path.join(base, "orders.module.ts"))).toBe(true);
+  });
+
+  it("DTO is in a separate file, not inlined in the use case", () => {
+    generateContext("orders");
+    const base = path.join(tmpDir, "src/contexts/orders");
+
+    const usecaseContent = fs.readFileSync(
+      path.join(base, "application/use-cases/create-orders.usecase.ts"),
+      "utf8",
+    );
+    const dtoContent = fs.readFileSync(
+      path.join(base, "application/use-cases/create-orders.dto.ts"),
+      "utf8",
+    );
+    expect(usecaseContent).not.toContain("export interface Create");
+    expect(usecaseContent).toContain("from './create-orders.dto'");
+    expect(dtoContent).toContain("CreateOrdersDto");
+  });
+
+  it("spec file imports vitest and has a describe block", () => {
+    generateContext("orders");
+    const content = fs.readFileSync(
+      path.join(tmpDir, "src/contexts/orders/application/use-cases/create-orders.usecase.spec.ts"),
+      "utf8",
+    );
+    expect(content).toContain("from 'vitest'");
+    expect(content).toContain("describe");
+    expect(content).toContain("expect");
   });
 
   it("generates valid entity class name (PascalCase)", () => {

@@ -110,6 +110,18 @@ function checkLayerViolation(
       suggestion:
         "Inject a port interface (declared in domain/ports/) instead — let the module wire the concrete adapter",
     });
+    return;
+  }
+
+  if (node.layer === "adapter-in" && target.layer === "adapter-out") {
+    violations.push({
+      message: "Adapter-in must not depend on adapter-out",
+      node: node.name,
+      filePath: node.filePath,
+      severity: "high",
+      suggestion:
+        "Controllers (adapter-in) must invoke use cases, not repository adapters directly — route through application/use-cases/ and inject a port",
+    });
   }
 }
 
@@ -168,7 +180,12 @@ function checkFrameworkViolations(
 
 /**
  * Infer component kind purely from directory name conventions.
- * Used as a fallback when name-based and decorator-based detection returns "unknown".
+ * Used as a fallback inside misplacement checks when the node kind is "unknown".
+ *
+ * Intentionally wider than kindFromLocation in @node-hexa/core: misplacement
+ * checks must catch components that the parser/name-based detector could not
+ * label (e.g. files in persistence/ or http/ folders without a typed name).
+ * Do NOT merge with kindFromLocation — the two serve different purposes.
  */
 function kindFromPath(filePath: string): import("@node-hexa/model").ComponentKind {
   const dir = filePath.replaceAll("\\", "/").toLowerCase();
@@ -256,15 +273,27 @@ function checkMisplacement(
     return;
   }
 
+  if (effectiveKind === "domain-event" && layer !== "domain") {
+    violations.push({
+      message: "Domain event must live in domain layer",
+      node: name,
+      filePath,
+      severity: "critical",
+      suggestion:
+        "Move to contexts/<ctx>/domain/events/ — domain events are part of the ubiquitous language and must remain framework-free",
+    });
+    return;
+  }
+
   if (effectiveKind === "module" && (layer === "domain" || layer === "application")) {
     violations.push({
       message:
-        "NestJS Module (composition root) must not live in domain or application layer",
+        "Module (composition root) must not live in domain or application layer",
       node: name,
       filePath,
       severity: "high",
       suggestion:
-        "Move to the context root: contexts/<ctx>/<ctx>.module.ts — modules wire infrastructure and must not pollute domain or application",
+        "Move to the context root: contexts/<ctx>/<ctx>.module.ts — composition root modules wire infrastructure and must not pollute domain or application",
     });
   }
 }
@@ -345,7 +374,7 @@ export function runCleanCodeRules(model: ArchitectureModel): RuleViolation[] {
   const checkedFiles = new Set<string>();
 
   for (const node of model.nodes) {
-    const { metrics, name, filePath, layer, imports } = node;
+    const { metrics, name, filePath, layer, kind, imports } = node;
 
     // ── File-level checks (once per file) ──────────────────────────────────
     if (!checkedFiles.has(filePath)) {
@@ -405,6 +434,21 @@ export function runCleanCodeRules(model: ArchitectureModel): RuleViolation[] {
         severity: "medium",
         suggestion:
           "Extract focused cohesive methods into a separate class. Each class should have one reason to change.",
+      });
+    }
+
+    // Value object mutability — all public properties must be readonly (DDD immutability rule)
+    if (
+      (kind === "value-object") &&
+      metrics.hasMutablePublicProperties === true
+    ) {
+      violations.push({
+        message: `Value object '${name}' has mutable public properties — value objects must be immutable`,
+        node: name,
+        filePath,
+        severity: "high",
+        suggestion:
+          "Mark all public properties as 'readonly'. Value objects represent concepts without identity — their state must never change after construction.",
       });
     }
   }

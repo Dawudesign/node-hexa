@@ -55,6 +55,14 @@ export interface ${pascal}RepositoryPort {
   );
 
   fs.writeFileSync(
+    path.join(base, "application/use-cases", `create-${name}.dto.ts`),
+    `export interface Create${pascal}Dto {
+  id?: string;
+}
+`,
+  );
+
+  fs.writeFileSync(
     path.join(base, "application/use-cases", `create-${name}.usecase.ts`),
     `import { Inject, Injectable } from '@nestjs/common';
 import { ${pascal} } from '../../domain/entities/${name}.entity';
@@ -62,11 +70,8 @@ import {
   ${token},
   ${pascal}RepositoryPort,
 } from '../../domain/ports/${name}.repository.port';
+import { Create${pascal}Dto } from './create-${name}.dto';
 import { randomUUID } from 'node:crypto';
-
-export interface Create${pascal}Dto {
-  id?: string;
-}
 
 @Injectable()
 export class Create${pascal}UseCase {
@@ -85,9 +90,36 @@ export class Create${pascal}UseCase {
   );
 
   fs.writeFileSync(
+    path.join(base, "application/use-cases", `create-${name}.usecase.spec.ts`),
+    `import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Create${pascal}UseCase } from './create-${name}.usecase';
+
+const mockRepository = {
+  save: vi.fn(),
+  findById: vi.fn(),
+};
+
+describe('Create${pascal}UseCase', () => {
+  let useCase: Create${pascal}UseCase;
+
+  beforeEach(() => {
+    useCase = new Create${pascal}UseCase(mockRepository as any);
+  });
+
+  it('should create and persist a ${pascal}', async () => {
+    const result = await useCase.execute({});
+    expect(result.id).toBeDefined();
+    expect(mockRepository.save).toHaveBeenCalledWith(result);
+  });
+});
+`,
+  );
+
+  fs.writeFileSync(
     path.join(base, "infrastructure/http", `${name}.controller.ts`),
     `import { Body, Controller, Post } from '@nestjs/common';
-import { Create${pascal}UseCase, Create${pascal}Dto } from '../../application/use-cases/create-${name}.usecase';
+import { Create${pascal}UseCase } from '../../application/use-cases/create-${name}.usecase';
+import { Create${pascal}Dto } from '../../application/use-cases/create-${name}.dto';
 
 @Controller('${name}')
 export class ${pascal}Controller {

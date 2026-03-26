@@ -31,6 +31,17 @@ function detectLayer(filePath: string, config: HexaConfig): Layer {
   return "unknown";
 }
 
+/**
+ * Narrow path-based kind fallback used only when name- and decorator-based
+ * detection returns "unknown". Covers only the four unambiguous structural
+ * directories (entities, value-objects, use-cases, ports).
+ *
+ * Intentionally narrower than kindFromPath in @node-hexa/rules: persistence/
+ * and http/ directories are deliberately excluded here because name-based
+ * detection already handles Repository/Controller classes; over-classifying
+ * by path would cause false positives.
+ * Do NOT merge with kindFromPath in rules — the two serve different purposes.
+ */
 function kindFromLocation(filePath: string): ComponentKind {
   const dir = filePath.toLowerCase().replaceAll("\\", "/").split("/").slice(0, -1).join("/");
   if (dir.includes("/entities") || dir.endsWith("/entities")) return "entity";
@@ -49,9 +60,10 @@ function detectKind(name: string, decorators: string[], filePath: string): Compo
   if (name.endsWith("Service")) return "service";
   if (name.endsWith("Port")) return "port";
   if (name.endsWith("Adapter")) return "adapter";
+  if (name.endsWith("Event") || name.endsWith("DomainEvent")) return "domain-event";
   // "Module" suffix alone is not enough — only classify as module if the @Module decorator
   // is present (NestJS-specific). Plain classes named *Module in Next.js or non-NestJS
-  // projects must not trigger the NestJS module misplacement rule.
+  // projects must not trigger the module misplacement rule.
   if (
     name.endsWith("Vo") ||
     name.endsWith("ValueObject") ||
@@ -116,6 +128,7 @@ export async function analyzeProject(projectPath: string) {
           lineCount: file.lineCount,
           methodCount: cls.methodCount,
           constructorParamCount: cls.constructorParamCount,
+          hasMutablePublicProperties: cls.hasMutablePublicProperties,
         },
       }));
 

@@ -1,4 +1,4 @@
-import { Project } from "ts-morph";
+import { Project, Scope } from "ts-morph";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -9,6 +9,11 @@ export type ParsedClass = {
   methodCount: number;
   /** Number of parameters in the primary constructor. */
   constructorParamCount: number;
+  /**
+   * True when the class has at least one public non-readonly property.
+   * Value objects must have all public properties readonly to guarantee immutability.
+   */
+  hasMutablePublicProperties: boolean;
 };
 
 export type ParsedFile = {
@@ -58,6 +63,9 @@ export async function parseProject(rootPath: string): Promise<ParsedProject> {
       methodCount: cls.getMethods().length,
       constructorParamCount:
         cls.getConstructors()[0]?.getParameters().length ?? 0,
+      hasMutablePublicProperties: cls.getProperties().some(
+        (p) => !p.isReadonly() && p.getScope() === Scope.Public,
+      ),
     }));
 
     const interfaces = file.getInterfaces().map((i) => i.getName());

@@ -27,9 +27,15 @@ function makeNode(
 
 function withTempProject(run: (projectPath: string) => void): void {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "node-hexa-audit-"));
-  fs.mkdirSync(path.join(tmp, "src", "contexts", "iam", "domain"), { recursive: true });
-  fs.mkdirSync(path.join(tmp, "src", "contexts", "iam", "application"), { recursive: true });
-  fs.mkdirSync(path.join(tmp, "src", "contexts", "iam", "infrastructure"), { recursive: true });
+  fs.mkdirSync(path.join(tmp, "src", "contexts", "iam", "domain"), {
+    recursive: true,
+  });
+  fs.mkdirSync(path.join(tmp, "src", "contexts", "iam", "application"), {
+    recursive: true,
+  });
+  fs.mkdirSync(path.join(tmp, "src", "contexts", "iam", "infrastructure"), {
+    recursive: true,
+  });
 
   try {
     run(tmp);
@@ -46,13 +52,19 @@ describe("buildArchitectureAuditReport", () => {
           "OrderController",
           "infrastructure",
           "controller",
-          path.join(projectPath, "src/contexts/iam/infrastructure/http/order.controller.ts"),
+          path.join(
+            projectPath,
+            "src/contexts/iam/infrastructure/http/order.controller.ts",
+          ),
         ),
         makeNode(
           "OrderRepository",
           "infrastructure",
           "repository",
-          path.join(projectPath, "src/contexts/iam/infrastructure/persistence/order.repository.ts"),
+          path.join(
+            projectPath,
+            "src/contexts/iam/infrastructure/persistence/order.repository.ts",
+          ),
         ),
         makeNode(
           "OrderPort",
@@ -64,7 +76,10 @@ describe("buildArchitectureAuditReport", () => {
           "Order",
           "domain",
           "entity",
-          path.join(projectPath, "src/contexts/iam/domain/entities/order.entity.ts"),
+          path.join(
+            projectPath,
+            "src/contexts/iam/domain/entities/order.entity.ts",
+          ),
           ["../../infrastructure/persistence/order.repository"],
         ),
       ];
@@ -73,7 +88,10 @@ describe("buildArchitectureAuditReport", () => {
         {
           message: "Domain must not depend on infrastructure",
           node: "Order",
-          filePath: path.join(projectPath, "src/contexts/iam/domain/entities/order.entity.ts"),
+          filePath: path.join(
+            projectPath,
+            "src/contexts/iam/domain/entities/order.entity.ts",
+          ),
           severity: "critical",
         },
       ];
@@ -101,14 +119,20 @@ describe("buildArchitectureAuditReport", () => {
           "OrderController",
           "infrastructure",
           "controller",
-          path.join(projectPath, "src/contexts/iam/infrastructure/http/order.controller.ts"),
+          path.join(
+            projectPath,
+            "src/contexts/iam/infrastructure/http/order.controller.ts",
+          ),
           ["../persistence/order.repository"],
         ),
         makeNode(
           "OrderRepository",
           "infrastructure",
           "repository",
-          path.join(projectPath, "src/contexts/iam/infrastructure/persistence/order.repository.ts"),
+          path.join(
+            projectPath,
+            "src/contexts/iam/infrastructure/persistence/order.repository.ts",
+          ),
         ),
       ];
 
@@ -119,7 +143,9 @@ describe("buildArchitectureAuditReport", () => {
 
       expect(
         report.findings.some((finding) =>
-          finding.message.includes("Controller directly depends on repository implementation"),
+          finding.message.includes(
+            "Controller directly depends on repository implementation",
+          ),
         ),
       ).toBe(true);
       expect(report.dddCompliance).toBe("ERROR");
@@ -133,7 +159,10 @@ describe("buildArchitectureAuditReport", () => {
           "OrderController",
           "infrastructure",
           "controller",
-          path.join(projectPath, "src/contexts/iam/infrastructure/http/order.controller.ts"),
+          path.join(
+            projectPath,
+            "src/contexts/iam/infrastructure/http/order.controller.ts",
+          ),
         ),
       ];
 
@@ -142,9 +171,17 @@ describe("buildArchitectureAuditReport", () => {
         violations: [],
       });
 
-      expect(report.findings.some((f) => f.message.includes("has no domain port"))).toBe(true);
-      expect(report.findings.some((f) => f.message.includes("has controller(s) but no use case"))).toBe(true);
-      expect(report.findings.every((f) => f.ruleId.startsWith("NXH"))).toBe(true);
+      expect(
+        report.findings.some((f) => f.message.includes("has no domain port")),
+      ).toBe(true);
+      expect(
+        report.findings.some((f) =>
+          f.message.includes("has controller(s) but no use case"),
+        ),
+      ).toBe(true);
+      expect(report.findings.every((f) => f.ruleId.startsWith("NXH"))).toBe(
+        true,
+      );
       expect(report.findings.every((f) => Boolean(f.category))).toBe(true);
       expect(report.estimatedTechnicalDebtDays).toBeGreaterThan(0);
       expect(report.findings.some((f) => f.category === "DDD")).toBe(true);
@@ -160,7 +197,10 @@ describe("buildArchitectureAuditReport", () => {
               "OrdersHttp",
               "infrastructure",
               "controller",
-              path.join(projectPath, "src/contexts/iam/infrastructure/http/orders-http.ts"),
+              path.join(
+                projectPath,
+                "src/contexts/iam/infrastructure/http/orders-http.ts",
+              ),
             ),
           ],
         },
@@ -169,8 +209,15 @@ describe("buildArchitectureAuditReport", () => {
 
       // Expected findings: missing-port (ERROR), missing-usecase (ERROR), missing-entity (WARNING), controller-name (INFO)
       expect(report.estimatedTechnicalDebtDays).toBe(1.3);
-      expect(report.findings.some((finding) => finding.severity === "INFO")).toBe(true);
-      expect(report.findings.some((finding) => finding.category === "HEXAGONAL" || finding.category === "DDD")).toBe(true);
+      expect(
+        report.findings.some((finding) => finding.severity === "INFO"),
+      ).toBe(true);
+      expect(
+        report.findings.some(
+          (finding) =>
+            finding.category === "HEXAGONAL" || finding.category === "DDD",
+        ),
+      ).toBe(true);
     });
   });
 
@@ -185,7 +232,10 @@ describe("buildArchitectureAuditReport", () => {
             `Order${i}`,
             "domain",
             "entity",
-            path.join(projectPath, `src/contexts/iam/domain/entities/order-${i}.entity.ts`),
+            path.join(
+              projectPath,
+              `src/contexts/iam/domain/entities/order-${i}.entity.ts`,
+            ),
           ),
         );
       }
@@ -220,20 +270,28 @@ describe("buildArchitectureAuditReport", () => {
               "OrderController",
               "infrastructure",
               "controller",
-              path.join(projectPath, "src/contexts/iam/infrastructure/http/order.controller.ts"),
+              path.join(
+                projectPath,
+                "src/contexts/iam/infrastructure/http/order.controller.ts",
+              ),
             ),
           ],
         },
         violations: [],
       });
 
-      expect(report.findings.some((finding) => finding.ruleId === "NXH012")).toBe(false);
+      expect(
+        report.findings.some((finding) => finding.ruleId === "NXH012"),
+      ).toBe(false);
     });
   });
 
   it("supports inline node-hexa-ignore suppression", () => {
     withTempProject((projectPath) => {
-      const filePath = path.join(projectPath, "src/contexts/iam/domain/entities/user.entity.ts");
+      const filePath = path.join(
+        projectPath,
+        "src/contexts/iam/domain/entities/user.entity.ts",
+      );
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(
         filePath,
@@ -243,18 +301,17 @@ describe("buildArchitectureAuditReport", () => {
       const report = buildArchitectureAuditReport(projectPath, {
         model: {
           nodes: [
-            makeNode(
-              "UserEntity",
-              "domain",
-              "entity",
-              filePath,
-              ["../../infrastructure/persistence/user.repository"],
-            ),
+            makeNode("UserEntity", "domain", "entity", filePath, [
+              "../../infrastructure/persistence/user.repository",
+            ]),
             makeNode(
               "UserRepository",
               "infrastructure",
               "repository",
-              path.join(projectPath, "src/contexts/iam/infrastructure/persistence/user.repository.ts"),
+              path.join(
+                projectPath,
+                "src/contexts/iam/infrastructure/persistence/user.repository.ts",
+              ),
             ),
           ],
         },
@@ -268,7 +325,9 @@ describe("buildArchitectureAuditReport", () => {
         ],
       });
 
-      expect(report.findings.some((finding) => finding.ruleId === "NXH001")).toBe(false);
+      expect(
+        report.findings.some((finding) => finding.ruleId === "NXH001"),
+      ).toBe(false);
     });
   });
 
@@ -281,7 +340,10 @@ describe("buildArchitectureAuditReport", () => {
               "OrderController",
               "infrastructure",
               "controller",
-              path.join(projectPath, "src/contexts/iam/infrastructure/http/order.controller.ts"),
+              path.join(
+                projectPath,
+                "src/contexts/iam/infrastructure/http/order.controller.ts",
+              ),
             ),
           ],
         },
@@ -317,7 +379,9 @@ describe("loadAuditEngineConfig", () => {
       const config = loadAuditEngineConfig(projectPath);
       expect(config.qualityGate.minScore).toBe(72);
       expect(config.rules.enforceUseCases).toBe(false);
-      expect(config.rules.forbiddenDependencies).toContain("controller -> repository");
+      expect(config.rules.forbiddenDependencies).toContain(
+        "controller -> repository",
+      );
     });
   });
 });
@@ -332,7 +396,10 @@ describe("baseline and sarif", () => {
               "OrderController",
               "infrastructure",
               "controller",
-              path.join(projectPath, "src/contexts/iam/infrastructure/http/order.controller.ts"),
+              path.join(
+                projectPath,
+                "src/contexts/iam/infrastructure/http/order.controller.ts",
+              ),
             ),
           ],
         },
@@ -402,7 +469,10 @@ describe("baseline and sarif", () => {
               "OrderController",
               "infrastructure",
               "controller",
-              path.join(projectPath, "src/contexts/iam/infrastructure/http/order.controller.ts"),
+              path.join(
+                projectPath,
+                "src/contexts/iam/infrastructure/http/order.controller.ts",
+              ),
             ),
           ],
         },
@@ -422,7 +492,9 @@ describe("baseline and sarif", () => {
         const firstResult = results[0];
         expect(typeof firstResult.ruleId).toBe("string");
         expect(typeof firstResult.level).toBe("string");
-        expect(typeof (firstResult.message as Record<string, unknown>).text).toBe("string");
+        expect(
+          typeof (firstResult.message as Record<string, unknown>).text,
+        ).toBe("string");
       }
     });
   });

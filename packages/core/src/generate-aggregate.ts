@@ -33,8 +33,10 @@ export function generateAggregate(name: string, context: string) {
 
   fs.writeFileSync(
     path.join(base, "domain/entities", `${name}.entity.ts`),
-    `export class ${pascal} {
-  constructor(public readonly id: string) {}
+    `import { ${pascal}Id } from '../value-objects/${name}-id.vo';
+
+export class ${pascal} {
+  constructor(public readonly id: ${pascal}Id) {}
 }
 `,
   );
@@ -72,6 +74,7 @@ export interface ${pascal}RepositoryPort {
     path.join(base, "application/use-cases", `create-${name}.usecase.ts`),
     `import { Inject, Injectable } from '@nestjs/common';
 import { ${pascal} } from '../../domain/entities/${name}.entity';
+import { ${pascal}Id } from '../../domain/value-objects/${name}-id.vo';
 import {
   ${token},
   ${pascal}RepositoryPort,
@@ -86,7 +89,7 @@ export class Create${pascal}UseCase {
   ) {}
 
   async execute(dto: Create${pascal}Dto): Promise<${pascal}> {
-    const entity = new ${pascal}(dto.id);
+    const entity = new ${pascal}(new ${pascal}Id(dto.id));
     await this.repository.save(entity);
     return entity;
   }
@@ -113,7 +116,7 @@ describe('Create${pascal}UseCase', () => {
 
   it('should create and persist a ${pascal}', async () => {
     const result = await useCase.execute({ id: '123' });
-    expect(result.id).toBe('123');
+    expect(result.id.value).toBe('123');
     expect(mockRepository.save).toHaveBeenCalledWith(result);
   });
 });
@@ -131,7 +134,7 @@ export class InMemory${pascal}Repository implements ${pascal}RepositoryPort {
   private readonly store = new Map<string, ${pascal}>();
 
   async save(entity: ${pascal}): Promise<void> {
-    this.store.set(entity.id, entity);
+    this.store.set(entity.id.value, entity);
   }
 
   async findById(id: string): Promise<${pascal} | null> {

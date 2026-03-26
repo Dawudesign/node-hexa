@@ -14,6 +14,8 @@ export type ParsedClass = {
    * Value objects must have all public properties readonly to guarantee immutability.
    */
   hasMutablePublicProperties: boolean;
+  /** True when the class declares a property or constructor parameter named 'id'. */
+  hasIdProperty: boolean;
 };
 
 export type ParsedFile = {
@@ -66,6 +68,10 @@ export async function parseProject(rootPath: string): Promise<ParsedProject> {
       hasMutablePublicProperties: cls.getProperties().some(
         (p) => !p.isReadonly() && p.getScope() === Scope.Public,
       ),
+      hasIdProperty:
+        cls.getProperties().some((p) => p.getName() === "id") ||
+        (cls.getConstructors()[0]?.getParameters().some((p) => p.getName() === "id") ??
+          false),
     }));
 
     const interfaces = file.getInterfaces().map((i) => i.getName());

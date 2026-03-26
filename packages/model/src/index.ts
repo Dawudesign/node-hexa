@@ -31,6 +31,11 @@ export type NodeMetrics = {
    * Used to enforce value object immutability: all observable state must be readonly.
    */
   hasMutablePublicProperties?: boolean;
+  /**
+   * True when the class declares a property or constructor parameter named 'id'.
+   * Entities (aggregate roots) must have a unique identity.
+   */
+  hasIdProperty?: boolean;
 };
 
 export type ArchitectureNode = {

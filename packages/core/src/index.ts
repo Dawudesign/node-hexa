@@ -129,6 +129,7 @@ export async function analyzeProject(projectPath: string) {
           methodCount: cls.methodCount,
           constructorParamCount: cls.constructorParamCount,
           hasMutablePublicProperties: cls.hasMutablePublicProperties,
+          hasIdProperty: cls.hasIdProperty,
         },
       }));
 

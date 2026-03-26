@@ -285,6 +285,17 @@ function checkMisplacement(
     return;
   }
 
+  if (effectiveKind === "entity" && layer === "domain" && node.metrics?.hasIdProperty === false) {
+    violations.push({
+      message: `Entity '${name}' has no 'id' property — aggregate roots must have a unique identity`,
+      node: name,
+      filePath,
+      severity: "high",
+      suggestion:
+        "Add a public readonly 'id' property (or constructor parameter) to uniquely identify this entity. Use a value object (e.g. UserId) for strong typing.",
+    });
+  }
+
   if (effectiveKind === "module" && (layer === "domain" || layer === "application")) {
     violations.push({
       message:
@@ -322,6 +333,71 @@ function checkCrossContextImport(
   }
 }
 
+// ─── Cyclic import rules ──────────────────────────────────────────────────────
+
+function checkCyclicImports(
+  model: ArchitectureModel,
+  violations: RuleViolation[],
+): void {
+  const visited = new Set<string>();
+  const inStack = new Set<string>();
+  const stackPath: ArchitectureNode[] = [];
+  const reportedCycles = new Set<string>();
+
+  function dfs(node: ArchitectureNode): void {
+    const key = node.filePath.toLowerCase();
+
+    if (inStack.has(key)) {
+      const cycleStartIdx = stackPath.findIndex(
+        (n) => n.filePath.toLowerCase() === key,
+      );
+      if (cycleStartIdx === -1) return;
+
+      const cycleNodes = stackPath.slice(cycleStartIdx);
+      const signature = cycleNodes
+        .map((n) => n.filePath)
+        .sort()
+        .join("|");
+      if (reportedCycles.has(signature)) return;
+      reportedCycles.add(signature);
+
+      const cyclePath =
+        cycleNodes.map((n) => n.name).join(" → ") + " → " + node.name;
+      violations.push({
+        message: `Cyclic import detected: ${cyclePath}`,
+        node: cycleNodes[0].name,
+        filePath: cycleNodes[0].filePath,
+        severity: "high",
+        suggestion:
+          "Break the cycle by extracting a shared abstraction (port interface or DTO) that both sides can depend on without creating a circular reference",
+      });
+      return;
+    }
+
+    if (visited.has(key)) return;
+
+    inStack.add(key);
+    stackPath.push(node);
+
+    for (const imp of node.imports) {
+      const target = findNodeByImport(imp, node.filePath, model.nodes);
+      if (target) {
+        dfs(target);
+      }
+    }
+
+    stackPath.pop();
+    inStack.delete(key);
+    visited.add(key);
+  }
+
+  for (const node of model.nodes) {
+    if (!visited.has(node.filePath.toLowerCase())) {
+      dfs(node);
+    }
+  }
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export function runRules(
@@ -342,6 +418,8 @@ export function runRules(
     checkFrameworkViolations(node, violations);
     checkMisplacement(node, violations);
   }
+
+  checkCyclicImports(model, violations);
 
   return strict
     ? violations

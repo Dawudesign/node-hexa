@@ -112,7 +112,7 @@ const program = new Command();
 
 program
   .name("node-hexa")
-  .description("Architecture governance CLI for NestJS")
+  .description("Architecture governance CLI for hexagonal DDD projects")
   .version(CLI_VERSION);
 
 program

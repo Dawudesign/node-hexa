@@ -35,7 +35,7 @@ export function generateContext(name: string) {
 
   fs.writeFileSync(
     path.join(base, "domain/entities", `${name}.entity.ts`),
-    `export class ${pascal} {
+    `export class ${pascal}Entity {
   constructor(public readonly id: string) {}
 }
 `,
@@ -43,13 +43,13 @@ export function generateContext(name: string) {
 
   fs.writeFileSync(
     path.join(base, "domain/ports", `${name}.repository.port.ts`),
-    `import { ${pascal} } from '../entities/${name}.entity';
+    `import { ${pascal}Entity } from '../entities/${name}.entity';
 
 export const ${token} = Symbol('${pascal}RepositoryPort');
 
 export interface ${pascal}RepositoryPort {
-  save(entity: ${pascal}): Promise<void>;
-  findById(id: string): Promise<${pascal} | null>;
+  save(entity: ${pascal}Entity): Promise<void>;
+  findById(id: string): Promise<${pascal}Entity | null>;
 }
 `,
   );
@@ -65,7 +65,7 @@ export interface ${pascal}RepositoryPort {
   fs.writeFileSync(
     path.join(base, "application/use-cases", `create-${name}.usecase.ts`),
     `import { Inject, Injectable } from '@nestjs/common';
-import { ${pascal} } from '../../domain/entities/${name}.entity';
+import { ${pascal}Entity } from '../../domain/entities/${name}.entity';
 import {
   ${token},
   ${pascal}RepositoryPort,
@@ -80,8 +80,8 @@ export class Create${pascal}UseCase {
     private readonly repository: ${pascal}RepositoryPort,
   ) {}
 
-  async execute(dto: Create${pascal}Dto = {}): Promise<${pascal}> {
-    const entity = new ${pascal}(dto.id ?? randomUUID());
+  async execute(dto: Create${pascal}Dto = {}): Promise<${pascal}Entity> {
+    const entity = new ${pascal}Entity(dto.id ?? randomUUID());
     await this.repository.save(entity);
     return entity;
   }
@@ -140,18 +140,18 @@ export class ${pascal}Controller {
       `in-memory-${name}.repository.ts`,
     ),
     `import { Injectable } from '@nestjs/common';
-import { ${pascal} } from '../../domain/entities/${name}.entity';
+import { ${pascal}Entity } from '../../domain/entities/${name}.entity';
 import { ${pascal}RepositoryPort } from '../../domain/ports/${name}.repository.port';
 
 @Injectable()
 export class InMemory${pascal}Repository implements ${pascal}RepositoryPort {
-  private readonly store = new Map<string, ${pascal}>();
+  private readonly store = new Map<string, ${pascal}Entity>();
 
-  async save(entity: ${pascal}): Promise<void> {
+  async save(entity: ${pascal}Entity): Promise<void> {
     this.store.set(entity.id, entity);
   }
 
-  async findById(id: string): Promise<${pascal} | null> {
+  async findById(id: string): Promise<${pascal}Entity | null> {
     return this.store.get(id) ?? null;
   }
 }

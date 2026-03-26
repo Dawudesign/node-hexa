@@ -629,3 +629,94 @@ describe("runGreenCodeRules", () => {
     expect(violations).toHaveLength(1);
   });
 });
+
+// ─── cyclic import detection ──────────────────────────────────────────────────
+
+describe("cyclic import detection", () => {
+  it("flags a direct A → B → A cycle", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeTypedNode(
+          "ServiceA",
+          "application",
+          "service",
+          "src/contexts/iam/application/service-a.ts",
+          ["./service-b"],
+        ),
+        makeTypedNode(
+          "ServiceB",
+          "application",
+          "service",
+          "src/contexts/iam/application/service-b.ts",
+          ["./service-a"],
+        ),
+      ],
+    };
+    const violations = runRules(model);
+    expect(violations.some((v) => v.message.includes("Cyclic import"))).toBe(true);
+  });
+
+  it("does not flag a DAG (no cycles)", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeTypedNode(
+          "UserEntity",
+          "domain",
+          "entity",
+          "src/contexts/iam/domain/entities/user.entity.ts",
+        ),
+        makeTypedNode(
+          "CreateUserUseCase",
+          "application",
+          "use-case",
+          "src/contexts/iam/application/use-cases/create-user.usecase.ts",
+          ["../../domain/entities/user.entity"],
+        ),
+      ],
+    };
+    const violations = runRules(model).filter((v) =>
+      v.message.includes("Cyclic import"),
+    );
+    expect(violations).toHaveLength(0);
+  });
+});
+
+// ─── entity identity rule ─────────────────────────────────────────────────────
+
+describe("entity identity rule", () => {
+  it("flags entity without id property", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "UserEntity",
+          "domain",
+          "entity",
+          "src/contexts/iam/domain/entities/user.entity.ts",
+          { hasIdProperty: false, lineCount: 10, methodCount: 0, constructorParamCount: 0 },
+        ),
+      ],
+    };
+    const violations = runRules(model);
+    expect(
+      violations.some((v) => v.message.includes("has no 'id' property")),
+    ).toBe(true);
+  });
+
+  it("does not flag entity with id property", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "UserEntity",
+          "domain",
+          "entity",
+          "src/contexts/iam/domain/entities/user.entity.ts",
+          { hasIdProperty: true, lineCount: 10, methodCount: 0, constructorParamCount: 1 },
+        ),
+      ],
+    };
+    const violations = runRules(model).filter((v) =>
+      v.message.includes("id property"),
+    );
+    expect(violations).toHaveLength(0);
+  });
+});

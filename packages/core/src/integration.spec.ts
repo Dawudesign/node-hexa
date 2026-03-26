@@ -78,7 +78,7 @@ describe("generateContext", () => {
       path.join(tmpDir, "src/contexts/orders/domain/entities/orders.entity.ts"),
       "utf8",
     );
-    expect(content).toContain("class Orders");
+    expect(content).toContain("class OrdersEntity");
   });
 
   it("generates a Symbol DI token", () => {
@@ -99,7 +99,7 @@ describe("generateContext", () => {
       path.join(base, "domain/entities/order-line.entity.ts"),
       "utf8",
     );
-    expect(content).toContain("class OrderLine");
+    expect(content).toContain("class OrderLineEntity");
   });
 
   it("throws if name is not kebab-case", () => {

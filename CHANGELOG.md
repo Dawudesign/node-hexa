@@ -11,6 +11,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.7.0] — 2026-03-27
+
+### Added
+
+**Performance rule engine** (`runPerfRules`)
+- `perf-heavy-di-constructor` — `constructorParamCount > 5` → wide DI trees slow NestJS startup (`high`)
+- `perf-bloated-usecase` — use-case `methodCount > 5` → single use-case must expose one `execute()` method (`high`)
+- `perf-large-infra-adapter` — infra / adapter-out file `lineCount > 500` → large adapters increase V8 heap and JIT cost (`medium`)
+- `perf-cross-context-fan-out` — file importing from `> 2` bounded contexts → startup loading cascade (`high`)
+- `runPerfRules()` exported from `@node-hexa/rules` and `@node-hexa/core`
+- `analyzeProject()` returns `perfViolations` + `perfScore`
+- `audit` command: performance section printed after main report; `perfScore` + `perfViolations` included in `--output json`
+- `analyze` command: 4th section for performance violations and score
+- `check` command: perf violations block CI; success message updated to include performance
+- 9 new tests (122 total)
+
+**Documentation**
+- `apps/cli/README.md` fully rewritten in English — npm-ready, covers all commands, perf rules, JSON schema, CI examples
+- Root `README.md` updated: performance rules section, check command updated, generate section in English
+
+---
+
 ## [0.6.0] — 2026-03-27
 
 ### Added

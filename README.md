@@ -78,6 +78,8 @@ Node-Hexa is usually not useful for:
 - Generate clean architecture project scaffolding
 - Audit architecture quality with a score and rule violations
 - Detect boundary and dependency violations
+- Enforce clean code and green code rules
+- Detect performance anti-patterns (startup cost, DI overhead, infra bloat)
 - Estimate technical debt per rule and per bounded context
 - Track debt history and show improvement trends
 - Enforce architecture standards in CI
@@ -251,18 +253,24 @@ The history file (`node-hexa-history.jsonl`) is append-only JSONL — safe to co
 
 ### check
 
-Purpose: CI-friendly pass/fail check for architecture, clean code, and green code rules.
+Purpose: CI-friendly pass/fail check across all 4 rule engines.
 
 ```bash
 node-hexa check .
 node-hexa check . --watch   # re-run every 2s
 ```
 
+Checks in order:
+1. Architecture (dependency direction, DDD, layer isolation)
+2. Clean code (constructor params, method count, file length)
+3. Green code / eco-design (imports, tree-shaking, GC pressure)
+4. Performance (DI overhead, bloated use cases, large adapters, cross-context fan-out)
+
 Output:
 
-- exits `0` when clean
-- exits `1` on violations
-- exits `2` on configuration/runtime errors
+- exits `0` — all checks passed (architecture, clean code, green code, performance)
+- exits `1` — violations found
+- exits `2` — configuration/runtime error
 
 ### doctor
 
@@ -374,6 +382,25 @@ Generates `node-hexa-report.html` with:
 - per-context debt bar chart
 - top violations ranked by debt cost
 - full findings table
+
+## Performance Rules
+
+Node-Hexa includes a dedicated performance rule engine targeting NestJS **startup cost** and **runtime overhead**:
+
+| Rule | Trigger | Why |
+|---|---|---|
+| Heavy DI constructor | `constructorParamCount > 5` | Wide DI trees slow NestJS boot — each extra dep adds transitive resolution cost |
+| Bloated use-case | use-case `methodCount > 5` | Use-cases must expose one `execute()` — extra methods load unused code paths eagerly |
+| Large infra adapter | infra file `> 500 lines` | Large adapters hold big closures in the V8 heap, slow JIT |
+| Cross-context fan-out | imports from `> 2` different contexts | Cascade module loading at startup |
+
+Run perf checks:
+
+```bash
+node-hexa check .              # blocks on perf violations
+node-hexa audit .              # shows performance score after main report
+node-hexa audit . --output json   # includes perfScore + perfViolations
+```
 
 ## Technical Debt Costs by Rule
 

@@ -188,7 +188,7 @@ describe("buildArchitectureAuditReport", () => {
     });
   });
 
-  it("computes technical debt with ERROR/WARNING/INFO formula", () => {
+  it("computes technical debt with per-rule cost formula", () => {
     withTempProject((projectPath) => {
       const report = buildArchitectureAuditReport(projectPath, {
         model: {
@@ -207,8 +207,8 @@ describe("buildArchitectureAuditReport", () => {
         violations: [],
       });
 
-      // Expected findings: missing-port (ERROR), missing-usecase (ERROR), missing-entity (WARNING), controller-name (INFO)
-      expect(report.estimatedTechnicalDebtDays).toBe(1.3);
+      // Expected findings: missing-port (0.5d), missing-usecase (0.8d), missing-entity (0.5d), controller-name (0.1d) = 1.9d
+      expect(report.estimatedTechnicalDebtDays).toBe(1.9);
       expect(
         report.findings.some((finding) => finding.severity === "INFO"),
       ).toBe(true);

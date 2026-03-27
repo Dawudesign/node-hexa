@@ -29,7 +29,6 @@ type InternalAuditFinding = {
   recommendation: string;
 };
 
-
 export type AuditFinding = {
   ruleId: string;
   category: RuleCategory;
@@ -39,15 +38,12 @@ export type AuditFinding = {
   filePath?: string;
 };
 
-export type EstimatedTechnicalDebtByContext = Record<string, number>;
-
 export type AuditStatus = "OK" | "WARNING" | "ERROR";
 
 export type ArchitectureAuditReport = {
   score: number;
   maxScore: number;
   estimatedTechnicalDebtDays: number;
-  estimatedTechnicalDebtByContext: EstimatedTechnicalDebtByContext;
   categoryScores: CategoryScores;
   dddCompliance: AuditStatus;
   hexagonalBoundaries: AuditStatus;
@@ -55,6 +51,8 @@ export type ArchitectureAuditReport = {
   findings: AuditFinding[];
   recommendations: string[];
   config: AuditEngineConfig;
+  /** Granular technical debt breakdown by context, category and rule. */
+  debtBreakdown: DebtBreakdown;
 };
 
 export type AuditBaseline = {
@@ -78,6 +76,23 @@ export type AuditAnalysisInput = {
   violations: RuleViolation[];
 };
 
+export type DebtBreakdown = {
+  /** Total estimated technical debt in engineer-days. */
+  total: number;
+  /** Debt per bounded context (context name → days). */
+  byContext: Record<string, number>;
+  /** Debt per audit category (category key → days). */
+  byCategory: Record<string, number>;
+  /** Up to 5 most expensive violations sorted by debt cost desc. */
+  topViolations: Array<{
+    ruleId: string;
+    code: string;
+    message: string;
+    debtDays: number;
+    filePath?: string;
+  }>;
+};
+
 const CATEGORY_WEIGHTS: Record<AuditCategoryKey, number> = {
   dependencyDirection: 35,
   layerIsolation: 25,
@@ -96,7 +111,6 @@ const FINDING_ORDER: Record<AuditSeverity, number> = {
   ERROR: 0,
   WARNING: 1,
   INFO: 2,
-  // Nouvelle fonction: dette technique par contexte
 };
 
 const RULE_IDS_BY_CODE: Record<string, string> = {
@@ -116,9 +130,28 @@ const RULE_IDS_BY_CODE: Record<string, string> = {
 };
 
 const DEFAULT_RULE_ID = "NXH999";
-const ERROR_DEBT_DAYS = 0.5;
-const WARNING_DEBT_DAYS = 0.2;
-const INFO_DEBT_DAYS = 0.05;
+
+/** Per-rule technical debt cost in engineer-days (replaces flat severity-based cost). */
+const DEBT_DAYS_BY_CODE: Record<string, number> = {
+  "dependency-direction": 1.5,
+  "cross-context-coupling": 1.0,
+  "layer-boundary": 0.8,
+  "controller-repository-coupling": 1.0,
+  "forbidden-dependency": 1.0,
+  "missing-usecase": 0.8,
+  "missing-port": 0.5,
+  "missing-entity": 0.5,
+  "missing-layer-directory": 0.3,
+  "usecase-name": 0.1,
+  "controller-name": 0.1,
+  "repository-name": 0.1,
+  "port-name": 0.1,
+};
+const DEFAULT_DEBT_DAYS = 0.3;
+
+function debtDaysForCode(code: string): number {
+  return DEBT_DAYS_BY_CODE[code] ?? DEFAULT_DEBT_DAYS;
+}
 
 function mapRuleCategory(category: AuditCategoryKey): RuleCategory {
   if (category === "dependencyDirection") return "DEPENDENCY";
@@ -165,36 +198,11 @@ function toAuditFinding(
 }
 
 function estimateTechnicalDebtDays(findings: InternalAuditFinding[]): number {
-  const debt = findings.reduce((total, finding) => {
-    if (finding.severity === "ERROR") {
-      return total + ERROR_DEBT_DAYS;
-    }
-    if (finding.severity === "WARNING") {
-      return total + WARNING_DEBT_DAYS;
-    }
-    return total + INFO_DEBT_DAYS;
-  }, 0);
-
+  const debt = findings.reduce(
+    (total, finding) => total + debtDaysForCode(finding.code),
+    0,
+  );
   return Number(debt.toFixed(1));
-}
-
-// Calcule la dette technique par contexte
-function estimateTechnicalDebtByContext(findings: InternalAuditFinding[]): Record<string, number> {
-  const contextDebt: Record<string, number> = {};
-  for (const finding of findings) {
-    const context = detectContextFromPath(finding.filePath || "unknown") || "unknown";
-    const add = finding.severity === "ERROR"
-      ? ERROR_DEBT_DAYS
-      : finding.severity === "WARNING"
-        ? WARNING_DEBT_DAYS
-        : INFO_DEBT_DAYS;
-    contextDebt[context] = (contextDebt[context] || 0) + add;
-  }
-  // Arrondir à 1 décimale
-  Object.keys(contextDebt).forEach(ctx => {
-    contextDebt[ctx] = Number(contextDebt[ctx].toFixed(1));
-  });
-  return contextDebt;
 }
 
 function findNodeByImport(
@@ -560,6 +568,47 @@ function buildDddFindings(
   return findings;
 }
 
+function buildDebtBreakdown(findings: InternalAuditFinding[]): DebtBreakdown {
+  const byContext: Record<string, number> = {};
+  const byCategory: Record<string, number> = {};
+  let total = 0;
+
+  for (const finding of findings) {
+    const days = debtDaysForCode(finding.code);
+    total += days;
+
+    byCategory[finding.category] = Number(
+      ((byCategory[finding.category] ?? 0) + days).toFixed(1),
+    );
+
+    const context = finding.filePath
+      ? detectContextFromPath(finding.filePath)
+      : null;
+    const ctxKey = context ?? "__global";
+    byContext[ctxKey] = Number(
+      ((byContext[ctxKey] ?? 0) + days).toFixed(1),
+    );
+  }
+
+  const topViolations = [...findings]
+    .map((f) => ({
+      ruleId: f.ruleId,
+      code: f.code,
+      message: f.message,
+      debtDays: debtDaysForCode(f.code),
+      filePath: f.filePath,
+    }))
+    .sort((a, b) => b.debtDays - a.debtDays)
+    .slice(0, 5);
+
+  return {
+    total: Number(total.toFixed(1)),
+    byContext,
+    byCategory,
+    topViolations,
+  };
+}
+
 function scoreCategory(findings: InternalAuditFinding[], weight: number): number {
   const penalty = findings.reduce((total, finding) => total + PENALTY_BY_SEVERITY[finding.severity], 0);
   const clampedPenalty = Math.min(weight, penalty);
@@ -683,13 +732,11 @@ export function buildArchitectureAuditReport(
 
   const recommendations = [...new Set(findings.map((finding) => finding.recommendation))];
   const estimatedTechnicalDebtDays = estimateTechnicalDebtDays(findings);
-  const estimatedTechnicalDebtByContext = estimateTechnicalDebtByContext(findings);
 
   return {
     score,
     maxScore: 100,
     estimatedTechnicalDebtDays,
-    estimatedTechnicalDebtByContext,
     categoryScores,
     dddCompliance: toStatus(byCategory("dddPatterns")),
     hexagonalBoundaries: toStatus([
@@ -707,6 +754,7 @@ export function buildArchitectureAuditReport(
     })),
     recommendations,
     config,
+    debtBreakdown: buildDebtBreakdown(findings),
   };
 }
 
@@ -869,6 +917,29 @@ export function generateAuditHtmlReport(
     : report.recommendations
       .map((recommendation) => `<li>${escapeHtml(recommendation)}</li>`)
       .join("\n");
+
+  const contextDebtRows = Object.entries(report.debtBreakdown.byContext)
+    .sort(([, a], [, b]) => b - a);
+  const maxContextDebt = Math.max(...contextDebtRows.map(([, v]) => v), 0.1);
+
+  const contextDebtHtml = contextDebtRows.length === 0
+    ? "<p>No context-level debt detected.</p>"
+    : contextDebtRows
+        .map(([ctx, days]) => {
+          const pct = Math.round((days / maxContextDebt) * 100);
+          const label = ctx === "__global" ? "(global)" : ctx;
+          return `<div class="category"><strong>${escapeHtml(label)}</strong><div style="display:flex;align-items:center;gap:8px;margin-top:6px"><div style="flex:1;background:#e5e7eb;border-radius:4px;height:8px"><div style="width:${pct}%;height:100%;background:#ef4444;border-radius:4px"></div></div><span style="font-size:13px;color:#6b7280">${days}d</span></div></div>`;
+        })
+        .join("\n");
+
+  const topViolationsDebtHtml = report.debtBreakdown.topViolations.length === 0
+    ? "<li>No violations.</li>"
+    : report.debtBreakdown.topViolations
+        .map(
+          (v) =>
+            `<li><strong>${escapeHtml(v.code)}</strong> <span style="color:#ef4444;font-weight:700">${v.debtDays}d</span> — ${escapeHtml(v.message)}${v.filePath ? `<div class="meta">${escapeHtml(v.filePath)}</div>` : ""}</li>`,
+        )
+        .join("\n");
 
   const rulesHtml = [
     "Dependency direction correctness: domain/application must not depend outward",

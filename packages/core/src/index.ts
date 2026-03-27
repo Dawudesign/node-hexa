@@ -214,7 +214,17 @@ export type {
   AuditAnalysisInput,
   AuditFinding,
   AuditStatus,
+  DebtBreakdown,
 } from "./audit";
+export {
+  appendAuditHistory,
+  readAuditHistory,
+  computeAuditTrend,
+} from "./audit-history";
+export type {
+  AuditHistoryEntry,
+  AuditTrend,
+} from "./audit-history";
 export {
   loadAuditEngineConfig,
   defaultAuditEngineConfig,

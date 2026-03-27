@@ -20,6 +20,9 @@ import {
   listContexts,
   readAuditBaseline,
   writeAuditBaseline,
+  appendAuditHistory,
+  readAuditHistory,
+  computeAuditTrend,
 } from "@node-hexa/core";
 import type { RuleViolation, ConfigIssue } from "@node-hexa/core";
 import type { ArchitectureNode } from "@node-hexa/model";
@@ -34,6 +37,7 @@ import {
   isVscodeOutput,
   printBaselineComparison,
   printAuditReport,
+  printDebtTrend,
   resolveFailUnder,
   serializeAuditReportJson,
   shouldFailQualityGate,
@@ -232,7 +236,8 @@ program
   .option("--format <format>", "output format (ci|sarif)")
   .option("--output <type>", "output type (json|vscode)")
   .option("--report <format>", "optional report format (html)")
-  .action(async (projectPath: string, options: { failUnder?: string; report?: string; badge?: boolean; format?: string; output?: string; baseline?: boolean; compareBaseline?: boolean }) => {
+  .option("--history", "append this run to node-hexa-history.jsonl and show debt trend")
+  .action(async (projectPath: string, options: { failUnder?: string; report?: string; badge?: boolean; format?: string; output?: string; baseline?: boolean; compareBaseline?: boolean; history?: boolean }) => {
     try {
       const analysis = await analyzeProject(projectPath);
       const report = buildArchitectureAuditReport(projectPath, {
@@ -322,6 +327,14 @@ program
       if (options.baseline) {
         const baselinePath = writeAuditBaseline(report, projectPath);
         console.log(`Baseline generated: ${baselinePath}`);
+      }
+
+      if (options.history) {
+        const historyPath = appendAuditHistory(report, projectPath);
+        console.log(`History appended: ${historyPath}`);
+        const entries = readAuditHistory(projectPath);
+        const trend = computeAuditTrend(entries);
+        printDebtTrend(trend);
       }
 
       if (shouldFailQualityGate(report.score, failUnder)) {
@@ -472,6 +485,20 @@ program
         if (ctx.domainEvents?.length) console.log(`    Domain Events : ${ctx.domainEvents.join(", ")}`);
         console.log("");
       }
+    } catch (err) {
+      handleError(err);
+    }
+  });
+
+program
+  .command("history")
+  .description("Show technical debt trend from node-hexa-history.jsonl")
+  .argument("[path]", "project path", ".")
+  .action((projectPath: string) => {
+    try {
+      const entries = readAuditHistory(projectPath);
+      const trend = computeAuditTrend(entries);
+      printDebtTrend(trend);
     } catch (err) {
       handleError(err);
     }

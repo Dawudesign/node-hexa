@@ -1,6 +1,7 @@
 import type {
   ArchitectureAuditReport,
   AuditBaselineComparison,
+  AuditTrend,
 } from "@node-hexa/core";
 
 export type AuditCliOptions = {
@@ -149,6 +150,26 @@ export function printAuditReport(report: ArchitectureAuditReport): void {
   console.log(`Architecture score: ${report.score}/${report.maxScore}\n`);
   console.log(`Estimated technical debt: ${report.estimatedTechnicalDebtDays} days\n`);
 
+  const { byContext, topViolations } = report.debtBreakdown;
+  const contextEntries = Object.entries(byContext).sort(([, a], [, b]) => b - a);
+  if (contextEntries.length > 0) {
+    console.log("Debt by context:");
+    for (const [ctx, days] of contextEntries) {
+      const label = ctx === "__global" ? "(global)" : ctx;
+      console.log(`  ${label}: ${days}d`);
+    }
+    console.log("");
+  }
+
+  if (topViolations.length > 0) {
+    console.log("Top violations by debt cost:");
+    for (const v of topViolations) {
+      const file = v.filePath ? ` (${v.filePath})` : "";
+      console.log(`  [${v.code}] ${v.debtDays}d — ${v.message}${file}`);
+    }
+    console.log("");
+  }
+
   printCategoryStatus("DDD compliance", report.dddCompliance);
   printCategoryStatus("Hexagonal boundaries", report.hexagonalBoundaries);
   printCategoryStatus("Dependency violations", report.dependencyViolations);
@@ -211,6 +232,7 @@ export function serializeAuditReportJson(
     score: report.score,
     maxScore: report.maxScore,
     estimatedTechnicalDebtDays: report.estimatedTechnicalDebtDays,
+    debtBreakdown: report.debtBreakdown,
     qualityGateStatus: options.qualityGateStatus,
     failureReasons: options.failureReasons,
     violations: report.findings,
@@ -223,4 +245,42 @@ export function serializeAuditReportJson(
   };
 
   return JSON.stringify(payload, null, 2);
+}
+export function printDebtTrend(trend: AuditTrend): void {
+  console.log("\nTechnical Debt History\n");
+
+  if (trend.entries.length === 0) {
+    console.log("  No history recorded yet. Run with --history to start tracking.\n");
+    return;
+  }
+
+  const trendIcon = trend.improving ? "↑" : trend.scoreDelta === null ? "—" : "↓";
+  const last5 = trend.entries.slice(-5);
+
+  console.log("  Date                  Score   Debt (d)   Violations");
+  console.log("  ─────────────────────────────────────────────────────");
+  for (const entry of last5) {
+    const date = new Date(entry.timestamp).toISOString().slice(0, 16).replace("T", " ");
+    console.log(
+      `  ${date}    ${String(entry.score).padStart(3)}     ${String(entry.totalDebtDays).padStart(6)}     ${entry.violationCount}`,
+    );
+  }
+
+  console.log("");
+
+  if (trend.scoreDelta !== null) {
+    const sign = trend.scoreDelta >= 0 ? "+" : "";
+    console.log(`  Score trend : ${trendIcon} ${sign}${trend.scoreDelta} pts vs previous run`);
+  }
+  if (trend.debtDelta !== null) {
+    const sign = trend.debtDelta <= 0 ? "" : "+";
+    console.log(`  Debt trend  : ${sign}${trend.debtDelta}d vs previous run`);
+  }
+  if (trend.worstContext) {
+    console.log(`  Worst context  : ${trend.worstContext}`);
+  }
+  if (trend.mostImprovedContext) {
+    console.log(`  Most improved  : ${trend.mostImprovedContext}`);
+  }
+  console.log("");
 }

@@ -1,12 +1,14 @@
 # node-hexa
 
-> Architecture governance CLI for NestJS — Hexagonal Architecture + DDD + Clean Code + Performance
+> Architecture governance CLI for TypeScript — Hexagonal Architecture + DDD + Clean Code + Performance
 
 [![npm](https://img.shields.io/npm/v/@dawudesign/node-hexa-cli)](https://www.npmjs.com/package/@dawudesign/node-hexa-cli)
 [![node](https://img.shields.io/node/v/@dawudesign/node-hexa-cli)](https://nodejs.org)
 [![license](https://img.shields.io/npm/l/@dawudesign/node-hexa-cli)](./LICENSE)
 
-Node-Hexa automatically enforces Hexagonal Architecture and Domain-Driven Design in NestJS projects. It audits code structure, scores compliance, tracks technical debt over time, and blocks CI when architecture degrades.
+Node-Hexa automatically enforces Hexagonal Architecture and Domain-Driven Design in TypeScript projects (NestJS, Express, Fastify…). It audits code structure, scores compliance, tracks technical debt over time, and blocks CI when architecture degrades.
+
+> **Note:** Node-Hexa only runs on projects that follow the hexagonal DDD folder layout (`src/contexts/<name>/{domain,application,infrastructure}`). Running it on a Next.js or plain Express project without this structure will exit with a clear error and a suggestion to run `node-hexa init`.
 
 ---
 

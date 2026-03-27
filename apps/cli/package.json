@@ -1,6 +1,6 @@
 {
   "name": "@dawudesign/node-hexa-cli",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "Architecture governance CLI for NestJS. Enforce Hexagonal Architecture, DDD, clean code, green code and performance rules with CI quality gates.",
   "author": "Dawudesign <contact@dawudesign.fr>",
   "keywords": [

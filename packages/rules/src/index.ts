@@ -534,6 +534,121 @@ export function runCleanCodeRules(model: ArchitectureModel): RuleViolation[] {
   return violations;
 }
 
+// ─── Performance rules ────────────────────────────────────────────────────────
+
+const PERF_MAX_CONSTRUCTOR_PARAMS = 5;  // >5 → wide DI tree, slow startup
+const PERF_MAX_USECASE_METHODS = 5;     // use-case should expose 1 execute() method
+const PERF_MAX_INFRA_LINES = 500;       // large adapters hold big closures in memory
+const PERF_MAX_CROSS_CONTEXT_IMPORTS = 2; // >2 cross-context → cascade module loading
+
+export function runPerfRules(model: ArchitectureModel): RuleViolation[] {
+  const violations: RuleViolation[] = [];
+  const checkedFiles = new Set<string>();
+
+  for (const node of model.nodes) {
+    const { metrics, name, filePath, layer, kind, imports } = node;
+
+    // ── 1. Heavy DI constructor ────────────────────────────────────────────
+    // NestJS resolves the full dependency tree at startup; wide constructors
+    // create O(n²) resolution chains and slow boot time.
+    if ((metrics?.constructorParamCount ?? 0) > PERF_MAX_CONSTRUCTOR_PARAMS) {
+      violations.push({
+        message: `Constructor has ${metrics!.constructorParamCount} injected dependencies — wide DI trees slow NestJS startup`,
+        node: name,
+        filePath,
+        severity: "high",
+        suggestion:
+          `Reduce constructor params to ${PERF_MAX_CONSTRUCTOR_PARAMS} or fewer. Group related dependencies behind a Facade service or split the class into focused units. Each extra injected dep adds transitive resolution cost at boot.`,
+      });
+    }
+
+    // ── 2. Bloated use-case ────────────────────────────────────────────────
+    // A use-case should expose exactly one execute() method.
+    // Extra methods mean more code is parsed and loaded eagerly, even when
+    // only one path is invoked per request.
+    if (
+      kind === "use-case" &&
+      (metrics?.methodCount ?? 0) > PERF_MAX_USECASE_METHODS
+    ) {
+      violations.push({
+        message: `Use-case '${name}' has ${metrics!.methodCount} methods — a use-case should do one thing`,
+        node: name,
+        filePath,
+        severity: "high",
+        suggestion:
+          "Extract each operation into its own dedicated use-case class. One class, one execute() method. This keeps the instantiation graph small and each request path lean.",
+      });
+    }
+
+    // ── 3. Large infrastructure adapter ───────────────────────────────────
+    // Large infra files keep a big closure in the V8 heap for the lifetime
+    // of the process. They also make JIT compilation slower.
+    if (
+      !checkedFiles.has(filePath) &&
+      (layer === "infrastructure" || layer === "adapter-out") &&
+      (metrics?.lineCount ?? 0) > PERF_MAX_INFRA_LINES
+    ) {
+      checkedFiles.add(filePath);
+      violations.push({
+        message: `Infrastructure file has ${metrics!.lineCount} lines — large adapters increase heap allocation and JIT compilation cost`,
+        node: name,
+        filePath,
+        severity: "medium",
+        suggestion:
+          "Split into focused single-aggregate repositories or dedicated adapter classes. One repository per aggregate root keeps each file small and independently loadable.",
+      });
+    }
+
+    // ── 4. Cross-context fan-out ───────────────────────────────────────────
+    // A file importing from more than PERF_MAX_CROSS_CONTEXT_IMPORTS distinct
+    // bounded contexts creates a wide loading cascade at startup: each context
+    // must be fully resolved before this module can initialise.
+    if (!checkedFiles.has(filePath)) {
+      checkedFiles.add(filePath);
+      const sourceCtx = detectContextFromPath(filePath);
+      if (sourceCtx) {
+        const importedContexts = new Set<string>();
+        for (const imp of imports) {
+          if (!imp.startsWith(".")) continue;
+          const resolved = (() => {
+            try {
+              return path.resolve(path.dirname(path.resolve(filePath)), imp);
+            } catch {
+              return null;
+            }
+          })();
+          if (!resolved) continue;
+          const target = model.nodes.find((n) => {
+            const noExt = path
+              .resolve(n.filePath)
+              .replace(/\.(ts|tsx|d\.ts)$/, "")
+              .toLowerCase();
+            const impNoExt = resolved.replace(/\.(ts|tsx|d\.ts)$/, "").toLowerCase();
+            return noExt === impNoExt || noExt === impNoExt + "/index";
+          });
+          if (!target) continue;
+          const targetCtx = detectContextFromPath(target.filePath);
+          if (targetCtx && targetCtx !== sourceCtx) {
+            importedContexts.add(targetCtx);
+          }
+        }
+        if (importedContexts.size > PERF_MAX_CROSS_CONTEXT_IMPORTS) {
+          violations.push({
+            message: `'${name}' imports from ${importedContexts.size} bounded contexts — cross-context fan-out creates startup loading cascades`,
+            node: name,
+            filePath,
+            severity: "high",
+            suggestion:
+              "A single class should depend on at most one or two external contexts. Introduce an anti-corruption layer or shared kernel module so each import resolves locally.",
+          });
+        }
+      }
+    }
+  }
+
+  return violations;
+}
+
 // ─── Green Code rules (eco-design) ───────────────────────────────────────────
 
 const GREEN_MAX_LINES = 300;

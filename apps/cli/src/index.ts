@@ -142,6 +142,10 @@ program
       printViolations(result.greenViolations, "Green Code Violations (Eco-Design)");
       console.log("Green Code Score\n");
       console.log(`Score: ${result.greenScore.score}/${result.greenScore.max}\n`);
+      console.log("\n───\n");
+      printViolations(result.perfViolations, "Performance Violations");
+      console.log("Performance Score\n");
+      console.log(`Score: ${result.perfScore.score}/${result.perfScore.max}\n`);
       printConfigIssues(result.configIssues);
     } catch (err) {
       handleError(err);
@@ -271,6 +275,8 @@ program
             qualityGateStatus: qualityGate.qualityGateStatus,
             failureReasons: qualityGate.failureReasons,
             baselineComparison,
+            perfScore: analysis.perfScore,
+            perfViolations: analysis.perfViolations,
           }),
         );
       } else if (isVscodeOutput(options.output)) {
@@ -305,6 +311,20 @@ program
         }
       } else {
         printAuditReport(report);
+        if (analysis.perfViolations.length > 0) {
+          console.log("─── Performance\n");
+          console.log(`Performance score: ${analysis.perfScore.score}/${analysis.perfScore.max}\n`);
+          for (const v of analysis.perfViolations) {
+            console.log(`  ⚡ [${v.severity.toUpperCase()}] ${v.message}`);
+            console.log(`       File: ${v.filePath}`);
+            if (v.suggestion) console.log(`       Fix:  ${v.suggestion}`);
+            console.log("");
+          }
+        } else {
+          console.log("─── Performance\n");
+          console.log(`Performance score: ${analysis.perfScore.score}/${analysis.perfScore.max}`);
+          console.log("  ✓ No performance violations\n");
+        }
         if (baselineComparison) {
           printBaselineComparison(baselineComparison);
         }
@@ -398,8 +418,8 @@ program
       // Show config warnings non-blocking
       if (result.configIssues.length) printConfigIssues(result.configIssues);
 
-      if (!result.violations.length && !result.cleanViolations.length && !result.greenViolations.length) {
-        console.log("✓ All checks passed (architecture, clean code, green code)");
+      if (!result.violations.length && !result.cleanViolations.length && !result.greenViolations.length && !result.perfViolations.length) {
+        console.log("✓ All checks passed (architecture, clean code, green code, performance)");
         return true;
       }
 
@@ -431,6 +451,17 @@ program
         passed = false;
         console.log("❗ Green code violations detected\n");
         for (const v of result.greenViolations) {
+          console.log(`  [${severityBadge(v.severity)}] ${v.message} → ${v.node}`);
+          console.log(`       File: ${v.filePath}`);
+          if (v.suggestion) console.log(`       Fix:  ${v.suggestion}`);
+          console.log("");
+        }
+      }
+
+      if (result.perfViolations.length) {
+        passed = false;
+        console.log("⚡ Performance violations detected\n");
+        for (const v of result.perfViolations) {
           console.log(`  [${severityBadge(v.severity)}] ${v.message} → ${v.node}`);
           console.log(`       File: ${v.filePath}`);
           if (v.suggestion) console.log(`       Fix:  ${v.suggestion}`);

@@ -1,6 +1,6 @@
 import { parseProject } from "@node-hexa/parser";
 import { loadConfig, validateConfig, type HexaConfig } from "./config";
-import { computeScore, runRules, runCleanCodeRules, runGreenCodeRules } from "@node-hexa/rules";
+import { computeScore, runRules, runCleanCodeRules, runGreenCodeRules, runPerfRules } from "@node-hexa/rules";
 import type { ArchitectureModel, Layer, ComponentKind } from "@node-hexa/model";
 import path from "node:path";
 import fs from "node:fs";
@@ -171,6 +171,8 @@ export async function analyzeProject(projectPath: string) {
   const cleanScore = computeScore(cleanViolations);
   const greenViolations = runGreenCodeRules(model);
   const greenScore = computeScore(greenViolations);
+  const perfViolations = runPerfRules(model);
+  const perfScore = computeScore(perfViolations);
   const configIssues = validateConfig(projectPath);
 
   return {
@@ -181,6 +183,8 @@ export async function analyzeProject(projectPath: string) {
     cleanScore,
     greenViolations,
     greenScore,
+    perfViolations,
+    perfScore,
     configIssues,
   };
 }
@@ -231,6 +235,6 @@ export {
 } from "./audit-config";
 export type { AuditEngineConfig } from "./audit-config";
 export type { RuleViolation } from "@node-hexa/rules";
-export { runCleanCodeRules, runGreenCodeRules } from "@node-hexa/rules";
+export { runCleanCodeRules, runGreenCodeRules, runPerfRules } from "@node-hexa/rules";
 export { validateConfig } from "./config";
 export type { ConfigIssue, ConfigIssueSeverity } from "./config";

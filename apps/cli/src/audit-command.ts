@@ -220,6 +220,8 @@ export function serializeAuditReportJson(
     qualityGateStatus: QualityGateStatus;
     failureReasons: FailureReason[];
     baselineComparison?: AuditBaselineComparison;
+    perfScore?: { score: number; max: number };
+    perfViolations?: import("@node-hexa/core").RuleViolation[];
   },
 ): string {
   const ruleIds = [...new Set(report.findings.map((finding) => finding.ruleId))];
@@ -233,6 +235,8 @@ export function serializeAuditReportJson(
     maxScore: report.maxScore,
     estimatedTechnicalDebtDays: report.estimatedTechnicalDebtDays,
     debtBreakdown: report.debtBreakdown,
+    perfScore: options.perfScore,
+    perfViolations: options.perfViolations,
     qualityGateStatus: options.qualityGateStatus,
     failureReasons: options.failureReasons,
     violations: report.findings,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runRules, computeScore, runCleanCodeRules, runGreenCodeRules } from "../src/index";
+import { runRules, computeScore, runCleanCodeRules, runGreenCodeRules, runPerfRules } from "../src/index";
 import type { ArchitectureModel, ArchitectureNode, NodeMetrics } from "@node-hexa/model";
 
 function makeNode(name: string, layer: string, imports: string[] = [], filePath = ""): ArchitectureNode {
@@ -718,5 +718,171 @@ describe("entity identity rule", () => {
       v.message.includes("id property"),
     );
     expect(violations).toHaveLength(0);
+  });
+});
+
+// ─── runPerfRules ─────────────────────────────────────────────────────────────
+
+describe("runPerfRules", () => {
+  it("flags constructor with more than 5 injected dependencies", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "HeavyUseCase",
+          "application",
+          "use-case",
+          "src/contexts/orders/application/use-cases/heavy.usecase.ts",
+          { constructorParamCount: 6, methodCount: 1, lineCount: 40 },
+        ),
+      ],
+    };
+    const violations = runPerfRules(model);
+    expect(violations.some((v) => v.message.includes("6 injected dependencies"))).toBe(true);
+  });
+
+  it("does not flag constructor with 5 or fewer params", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "OkUseCase",
+          "application",
+          "use-case",
+          "src/contexts/orders/application/use-cases/ok.usecase.ts",
+          { constructorParamCount: 5, methodCount: 1, lineCount: 30 },
+        ),
+      ],
+    };
+    const violations = runPerfRules(model);
+    expect(violations.filter((v) => v.message.includes("injected dependencies"))).toHaveLength(0);
+  });
+
+  it("flags a use-case with more than 5 methods", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "FatUseCase",
+          "application",
+          "use-case",
+          "src/contexts/orders/application/use-cases/fat.usecase.ts",
+          { constructorParamCount: 1, methodCount: 7, lineCount: 80 },
+        ),
+      ],
+    };
+    const violations = runPerfRules(model);
+    expect(violations.some((v) => v.message.includes("7 methods"))).toBe(true);
+  });
+
+  it("does not flag a use-case with 5 or fewer methods", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "LeanUseCase",
+          "application",
+          "use-case",
+          "src/contexts/orders/application/use-cases/lean.usecase.ts",
+          { constructorParamCount: 1, methodCount: 5, lineCount: 30 },
+        ),
+      ],
+    };
+    const violations = runPerfRules(model);
+    expect(violations.filter((v) => v.message.includes("methods"))).toHaveLength(0);
+  });
+
+  it("does not flag methods on non-use-case classes", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "OrdersService",
+          "application",
+          "service",
+          "src/contexts/orders/application/orders.service.ts",
+          { constructorParamCount: 1, methodCount: 8, lineCount: 100 },
+        ),
+      ],
+    };
+    const violations = runPerfRules(model);
+    expect(violations.filter((v) => v.message.includes("methods"))).toHaveLength(0);
+  });
+
+  it("flags an infrastructure file exceeding 500 lines", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "HugeRepository",
+          "infrastructure",
+          "repository",
+          "src/contexts/orders/infrastructure/persistence/huge.repository.ts",
+          { lineCount: 600, methodCount: 10, constructorParamCount: 2 },
+        ),
+      ],
+    };
+    const violations = runPerfRules(model);
+    expect(violations.some((v) => v.message.includes("600 lines"))).toBe(true);
+  });
+
+  it("does not flag an infrastructure file within 500 lines", () => {
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "OkRepository",
+          "infrastructure",
+          "repository",
+          "src/contexts/orders/infrastructure/persistence/ok.repository.ts",
+          { lineCount: 500, methodCount: 5, constructorParamCount: 1 },
+        ),
+      ],
+    };
+    const violations = runPerfRules(model);
+    expect(violations.filter((v) => v.message.includes("lines"))).toHaveLength(0);
+  });
+
+  it("flags cross-context fan-out when a file imports from more than 2 contexts", () => {
+    // Source: src/contexts/orders/application/god.service.ts
+    // ../../ = src/contexts/ → then into iam/, billing/, catalog/
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "GodService",
+          "application",
+          "service",
+          "src/contexts/orders/application/god.service.ts",
+          { constructorParamCount: 3, methodCount: 3, lineCount: 80 },
+          [
+            "../../iam/domain/ports/user.repository.port",
+            "../../billing/domain/ports/invoice.repository.port",
+            "../../catalog/domain/ports/product.repository.port",
+          ],
+        ),
+        makeMetricNode("UserPort", "domain", "port", "src/contexts/iam/domain/ports/user.repository.port.ts", {}),
+        makeMetricNode("InvoicePort", "domain", "port", "src/contexts/billing/domain/ports/invoice.repository.port.ts", {}),
+        makeMetricNode("ProductPort", "domain", "port", "src/contexts/catalog/domain/ports/product.repository.port.ts", {}),
+      ],
+    };
+    const violations = runPerfRules(model);
+    expect(violations.some((v) => v.message.includes("bounded contexts"))).toBe(true);
+  });
+
+  it("does not flag a file importing from 2 or fewer contexts", () => {
+    // Source: src/contexts/orders/application/narrow.service.ts
+    // ../../ = src/contexts/ → both imports go to iam/ = same context, should not flag
+    const model: ArchitectureModel = {
+      nodes: [
+        makeMetricNode(
+          "NarrowService",
+          "application",
+          "service",
+          "src/contexts/orders/application/narrow.service.ts",
+          { constructorParamCount: 2, methodCount: 2, lineCount: 40 },
+          [
+            "../../iam/domain/ports/user.repository.port",
+            "../../iam/domain/entities/user.entity",
+          ],
+        ),
+        makeMetricNode("UserPort", "domain", "port", "src/contexts/iam/domain/ports/user.repository.port.ts", {}),
+        makeMetricNode("UserEntity", "domain", "entity", "src/contexts/iam/domain/entities/user.entity.ts", {}),
+      ],
+    };
+    const violations = runPerfRules(model);
+    expect(violations.filter((v) => v.message.includes("bounded contexts"))).toHaveLength(0);
   });
 });

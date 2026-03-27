@@ -1121,6 +1121,17 @@ export function generateAuditHtmlReport(
     </section>
 
     <section class="card">
+      <h2>Technical Debt</h2>
+      <div style="font-size:14px;color:#6b7280;margin-bottom:12px">Total: <strong style="color:#1e293b">${report.estimatedTechnicalDebtDays} engineer-days</strong></div>
+      <h3 style="font-size:14px;margin:0 0 8px">By Bounded Context</h3>
+      ${contextDebtHtml}
+      <h3 style="font-size:14px;margin:16px 0 8px">Top Violations</h3>
+      <ul>
+        ${topViolationsDebtHtml}
+      </ul>
+    </section>
+
+    <section class="card">
       <h2>Detected Problems</h2>
       <ul>
         ${findingsHtml}

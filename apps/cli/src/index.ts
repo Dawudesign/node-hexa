@@ -249,6 +249,17 @@ program
         violations: analysis.violations,
       });
 
+      if (report.notHexagonal) {
+        console.error("node-hexa: no hexagonal DDD structure detected.");
+        console.error("");
+        console.error("  This tool analyses hexagonal DDD TypeScript projects.");
+        console.error("  Expected layout:  src/contexts/<context-name>/{domain,application,infrastructure}");
+        console.error("");
+        console.error("  To initialise a project:  node-hexa init");
+        console.error("  To configure a custom layout:  node-hexa.config.json → contextsDir");
+        process.exit(1);
+      }
+
       if (options.output && !isJsonOutput(options.output) && !isVscodeOutput(options.output)) {
         die(`Unsupported output type '${options.output}'. Supported values: json, vscode`);
       }

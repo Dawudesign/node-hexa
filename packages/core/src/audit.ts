@@ -53,6 +53,12 @@ export type ArchitectureAuditReport = {
   config: AuditEngineConfig;
   /** Granular technical debt breakdown by context, category and rule. */
   debtBreakdown: DebtBreakdown;
+  /**
+   * True when no hexagonal DDD structure was detected in the project.
+   * The audit score is meaningless in this case — the project is not
+   * a hexagonal DDD project (e.g. Next.js, plain Express, etc.).
+   */
+  notHexagonal?: boolean;
 };
 
 export type AuditBaseline = {
@@ -694,6 +700,43 @@ export function buildArchitectureAuditReport(
 ): ArchitectureAuditReport {
   const config = loadAuditEngineConfig(projectPath);
   const nodes = analysis.model.nodes;
+
+  // A project is considered hexagonal when at least one analysed file lives
+  // inside a `contexts/` directory — the canonical DDD hexagonal layout.
+  const hasHexagonalStructure = nodes.some(
+    (node) => detectContextFromPath(node.filePath) !== null,
+  );
+
+  if (!hasHexagonalStructure) {
+    // Return a minimal sentinel report so callers can detect and handle the
+    // "not a hexagonal project" case without crashing on missing fields.
+    const emptyBreakdown: DebtBreakdown = {
+      total: 0,
+      byContext: {},
+      byCategory: {},
+      topViolations: [],
+    };
+    return {
+      score: 0,
+      maxScore: 100,
+      estimatedTechnicalDebtDays: 0,
+      categoryScores: {
+        dependencyDirection: 0,
+        layerIsolation: 0,
+        namingConventions: 0,
+        folderStructure: 0,
+        dddPatterns: 0,
+      },
+      dddCompliance: "OK",
+      hexagonalBoundaries: "OK",
+      dependencyViolations: "OK",
+      findings: [],
+      recommendations: [],
+      config,
+      debtBreakdown: emptyBreakdown,
+      notHexagonal: true,
+    };
+  }
 
   const dedupedFindings = dedupeFindings([
     ...buildFindingsFromBaseViolations(analysis.violations),

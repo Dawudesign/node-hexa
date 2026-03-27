@@ -11,6 +11,57 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.6.0] — 2026-03-27
+
+### Added
+
+**Granular technical debt tracking**
+- `DEBT_DAYS_BY_CODE` — per-rule debt costs replace flat severity-based constants (e.g. `dependency-direction` = 1.5d, `cross-context-coupling` = 1.0d, `missing-usecase` = 0.8d)
+- `DebtBreakdown` type — total debt, debt by bounded context, debt by category, top 5 most expensive violations
+- `debtBreakdown` field on every `ArchitectureAuditReport`
+- HTML report "Technical Debt" section with per-context bar chart and ranked violation list
+
+**Audit history and trend analysis** (`packages/core/src/audit-history.ts`)
+- `appendAuditHistory(report, path)` — appends run to `node-hexa-history.jsonl` (append-only JSONL)
+- `readAuditHistory(path)` — reads all entries oldest-first
+- `computeAuditTrend(entries)` — returns `AuditTrend`: score delta, debt delta, worst context, most improved context
+- Exports `AuditHistoryEntry`, `AuditTrend`, `DebtBreakdown` from `@node-hexa/core`
+
+**CLI improvements**
+- `node-hexa audit . --history` — appends the run to history and prints a 5-run debt trend table
+- `node-hexa history [path]` — standalone command to view the full trend at any time
+- `printAuditReport` now shows debt by context and top violations ranked by cost
+- `--output json` now includes `debtBreakdown` field
+
+**DDD / Hexagonal rule improvements** (rules package)
+- Cyclic import detection across bounded contexts (DFS-based, deduplicated)
+- Entity identity rule — entities without an `id` property are flagged
+- Domain-event misplacement rule — domain events placed outside `domain/events/` are flagged
+- Value-object immutability rule — value objects with mutable public properties are flagged
+- Adapter-in → adapter-out coupling rule
+
+**Code generators**
+- `generate event <name> <context>` — scaffolds a `*.domain-event.ts` class in `domain/events/`
+- `generate aggregate` — entity now uses a proper `${Pascal}Id` value object
+- `generate context` — entity class named `${Pascal}Entity`; `domain/events/` directory included
+- `init --template` — CI templates now correctly detect npm vs pnpm
+
+**Parser and model**
+- `ParsedClass` carries `hasIdProperty` and `hasMutablePublicProperties` metrics
+- `ArchitectureNode.metrics` propagates both to the rule engine
+
+**Mermaid graph**
+- File-path-based unique node IDs eliminate phantom edges from filename collisions
+
+**Config validation**
+- `validateConfig` warns on `ignoredRules` entries that do not match any known `NXH` code
+
+### Changed
+- `estimateTechnicalDebtDays` uses per-rule costs instead of flat `ERROR=0.5d / WARNING=0.2d / INFO=0.05d`
+- `audit.spec.ts` updated: debt expectation changed from `1.3` to `1.9` (reflects per-rule formula)
+
+---
+
 ## [0.4.0] — 2026-01-20
 
 ### Added

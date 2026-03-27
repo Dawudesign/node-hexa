@@ -8,9 +8,14 @@ Node-Hexa automatically enforces Hexagonal Architecture and DDD in NestJS projec
 
 | Command | Purpose |
 |---|---|
-| `audit` | Analyze architecture quality and report score/violations |
+| `audit` | Analyze architecture quality — score, violations, debt breakdown |
+| `history` | Show technical debt trend from audit history |
 | `init` | Create a NestJS project scaffold with Node-Hexa structure |
+| `generate` | Scaffold contexts, use cases, aggregates, domain events |
 | `check` | Validate architecture, clean code, and green code rules for CI |
+| `doctor` | Check local environment readiness |
+| `demo` | Generate a demo project with good and bad patterns |
+| `list` | List all bounded contexts and their components |
 
 ## Example Architecture Enforced
 
@@ -19,8 +24,15 @@ src/
   contexts/
     orders/
       domain/
+        entities/
+        value-objects/
+        ports/
+        events/
       application/
+        use-cases/
       infrastructure/
+        persistence/
+        http/
 ```
 
 ## Problem
@@ -51,6 +63,7 @@ Use Node-Hexa if:
 - you use DDD / Hexagonal Architecture
 - you want enforceable architecture rules
 - you want CI architecture checks and score thresholds
+- you want technical debt tracked per bounded context over time
 
 ## When Not to Use It
 
@@ -65,8 +78,9 @@ Node-Hexa is usually not useful for:
 - Generate clean architecture project scaffolding
 - Audit architecture quality with a score and rule violations
 - Detect boundary and dependency violations
+- Estimate technical debt per rule and per bounded context
+- Track debt history and show improvement trends
 - Enforce architecture standards in CI
-- Track architecture evolution through baseline comparison
 
 ## Quick Example
 
@@ -82,18 +96,24 @@ Node Hexa Architecture Report
 Architecture score: 60/100
 Estimated technical debt: 1.5 days
 
+Debt by context:
+  orders: 1.0d
+  iam: 0.5d
+
+Top violations by debt cost:
+  [dependency-direction] 1.5d — Domain must not depend on infrastructure (src/contexts/orders/...)
+  [cross-context-coupling] 1.0d — Context 'orders' imports from context 'iam' (...)
+
 DDD compliance: ERROR
 Hexagonal boundaries: ERROR
 Dependency violations: ERROR
 
 Detected problems:
-- [NXH012][ERROR][DDD] Context 'bad' has no domain port
-- [NXH010][ERROR][STRUCTURE] Context 'bad' is missing 'application' directory
 - [NXH001][ERROR][DEPENDENCY] Domain must not depend on infrastructure
+- [NXH012][ERROR][DDD] Context 'bad' has no domain port
 
 Recommendations:
 - Create domain ports to invert dependencies between application and infrastructure layers.
-- Create the standard hexagonal folders: domain, application, and infrastructure.
 - Enforce inward dependency flow: infrastructure -> application -> domain through ports and interfaces.
 ```
 
@@ -137,25 +157,39 @@ Purpose: scaffold a new NestJS project with Node-Hexa structure.
 node-hexa init my-app --template api --ci
 ```
 
+Templates: `api` (default), `microservice`, `event-driven`
+
 Output:
 
-- project created
-- architecture config generated
-- optional CI templates generated (`.github/workflows/node-hexa.yml`, `.gitlab-ci.yml`)
+- project created with Hexagonal DDD folder structure
+- architecture config (`node-hexa.config.json`) generated
+- optional CI templates (`.github/workflows/node-hexa.yml`, `.gitlab-ci.yml`) for npm or pnpm
 
 ### generate
 
 Purpose: generate architecture elements inside an existing project.
 
 ```bash
+# Generate a bounded context
 node-hexa generate context orders
+
+# Generate a use case inside a context
 node-hexa generate usecase create-order orders
+
+# Generate an aggregate (entity + VO + port + use case + controller + module)
 node-hexa generate aggregate product catalog
+
+# Generate a domain event
+node-hexa generate event order-placed orders
 ```
 
-Output:
+Arguments:
+- `context`: `<name>`
+- `usecase`: `<name> <context>`
+- `aggregate`: `<name> <context>`
+- `event`: `<name> <context>`
 
-- generated files for context/use case/aggregate using expected folder conventions
+Missing `<context>` for usecase, aggregate, or event produces a clear error message.
 
 ### audit
 
@@ -167,10 +201,53 @@ node-hexa audit .
 
 Output:
 
-- architecture score
-- violations with `NXH` rule IDs
+- architecture score (`0..100`)
+- violations with `NXH` rule IDs and severity
+- technical debt estimate (total days)
+- debt breakdown by bounded context and top violations
 - recommendations
-- technical debt estimate
+
+#### Options
+
+| Option | Description |
+|---|---|
+| `--fail-under <score>` | Exit 1 when score is below threshold |
+| `--history` | Append this run to `node-hexa-history.jsonl` and show debt trend |
+| `--baseline` | Write `node-hexa-baseline.json` |
+| `--compare-baseline` | Compare against saved baseline |
+| `--format ci` | GitHub Actions / GitLab annotation format |
+| `--format sarif` | SARIF 2.1.0 for GitHub Code Scanning |
+| `--output json` | Machine-readable JSON with full debt breakdown |
+| `--output vscode` | VS Code diagnostic format |
+| `--report html` | Generate `node-hexa-report.html` with charts |
+| `--badge` | Generate `node-hexa-score.svg` badge |
+
+### history
+
+Purpose: display the technical debt trend from all recorded audit runs.
+
+```bash
+node-hexa history .
+```
+
+Example output:
+
+```text
+Technical Debt History
+
+  Date                  Score   Debt (d)   Violations
+  ─────────────────────────────────────────────────────
+  2026-03-20 09:00       75        4.5     12
+  2026-03-24 14:30       82        3.1      8
+  2026-03-27 08:50       88        1.9      5
+
+  Score trend : ↑ +6 pts vs previous run
+  Debt trend  : -1.2d vs previous run
+  Worst context  : orders
+  Most improved  : iam
+```
+
+The history file (`node-hexa-history.jsonl`) is append-only JSONL — safe to commit and diff.
 
 ### check
 
@@ -178,6 +255,7 @@ Purpose: CI-friendly pass/fail check for architecture, clean code, and green cod
 
 ```bash
 node-hexa check .
+node-hexa check . --watch   # re-run every 2s
 ```
 
 Output:
@@ -198,6 +276,18 @@ Output:
 
 - environment checks with `ok`, `warn`, or `error`
 
+### list
+
+Purpose: list all bounded contexts and their components.
+
+```bash
+node-hexa list .
+```
+
+Output:
+
+- per-context summary of entities, value objects, ports, use cases, domain events
+
 ### demo
 
 Purpose: create a sample project with good and bad architecture patterns for demonstration.
@@ -212,13 +302,6 @@ Output:
 
 ## Audit Usage
 
-Node-Hexa audit is centered on four outputs:
-
-- score (`0..100`)
-- violations (`NXH` rules)
-- technical debt estimate (days)
-- quality gate status
-
 ### Default audit
 
 ```bash
@@ -231,10 +314,46 @@ node-hexa audit .
 node-hexa audit . --fail-under 80
 ```
 
+### Track debt over time
+
+```bash
+# Append each run to history and show trend
+node-hexa audit . --history
+
+# Show trend from history file only
+node-hexa history .
+```
+
 ### Machine-readable JSON
 
 ```bash
 node-hexa audit . --output json
+```
+
+Example output (partial):
+
+```json
+{
+  "score": 82,
+  "maxScore": 100,
+  "estimatedTechnicalDebtDays": 3.1,
+  "debtBreakdown": {
+    "total": 3.1,
+    "byContext": {
+      "orders": 2.3,
+      "iam": 0.8
+    },
+    "byCategory": {
+      "DEPENDENCY": 1.5,
+      "DDD": 1.6
+    },
+    "topViolations": [
+      { "ruleId": "NXH001", "code": "dependency-direction", "debtDays": 1.5, "message": "..." },
+      { "ruleId": "NXH002", "code": "cross-context-coupling", "debtDays": 1.0, "message": "..." }
+    ]
+  },
+  ...
+}
 ```
 
 ### CI annotation format
@@ -242,6 +361,36 @@ node-hexa audit . --output json
 ```bash
 node-hexa audit . --format ci
 ```
+
+### HTML report
+
+```bash
+node-hexa audit . --report html
+```
+
+Generates `node-hexa-report.html` with:
+
+- score card
+- per-context debt bar chart
+- top violations ranked by debt cost
+- full findings table
+
+## Technical Debt Costs by Rule
+
+Each rule has a calibrated debt cost in engineer-days:
+
+| Rule | Code | Debt |
+|---|---|---|
+| Dependency direction | `dependency-direction` | 1.5d |
+| Cross-context coupling | `cross-context-coupling` | 1.0d |
+| Controller→Repository coupling | `controller-repository-coupling` | 1.0d |
+| Forbidden dependency | `forbidden-dependency` | 1.0d |
+| Layer boundary | `layer-boundary` | 0.8d |
+| Missing use case | `missing-usecase` | 0.8d |
+| Missing port | `missing-port` | 0.5d |
+| Missing entity | `missing-entity` | 0.5d |
+| Missing layer directory | `missing-layer-directory` | 0.3d |
+| Naming conventions | `usecase-name`, `controller-name`, etc. | 0.1d |
 
 ## CI Integration Example
 
@@ -263,7 +412,7 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
-      - run: npx @dawudesign/node-hexa-cli audit . --fail-under 80 --format ci
+      - run: npx @dawudesign/node-hexa-cli audit . --fail-under 80 --format ci --history
 ```
 
 ## Architecture Rules
@@ -290,16 +439,20 @@ node-hexa audit . --baseline
 node-hexa audit . --compare-baseline
 ```
 
-### SARIF
+### Debt history and trend
 
 ```bash
-node-hexa audit . --format sarif
+# Record every CI run
+node-hexa audit . --history --fail-under 80
+
+# View trend locally
+node-hexa history .
 ```
 
-### JSON
+### SARIF (GitHub Code Scanning)
 
 ```bash
-node-hexa audit . --output json
+node-hexa audit . --format sarif > results.sarif
 ```
 
 ### Quality gate enforcement
@@ -308,15 +461,14 @@ node-hexa audit . --output json
 node-hexa audit . --fail-under 80
 ```
 
-## Developer Workflow Diagram
-
-Developer workflow diagram:
+## Developer Workflow
 
 ```text
 Developer writes code
-  -> runs node-hexa audit
-  -> fixes violations
-  -> CI enforces score
+  -> node-hexa audit .              (local feedback)
+  -> node-hexa audit . --history    (track debt trend)
+  -> CI enforces score threshold
+  -> team reviews node-hexa history on main branch
 ```
 
 ## Typical Team Usage
@@ -331,32 +483,11 @@ Pull request:
 
 Main branch:
 
-- compare against baseline for architecture evolution tracking
+- track debt history and detect regressions
 
 ```bash
-node-hexa audit . --compare-baseline --output json
-```
-
-## Example Workflow
-
-Typical team workflow:
-
-1. Local development: run audit before commit.
-
-```bash
-node-hexa audit .
-```
-
-2. Pull request: enforce threshold and annotate CI logs.
-
-```bash
-node-hexa audit . --fail-under 80 --format ci
-```
-
-3. Main branch: keep baseline and monitor architecture evolution.
-
-```bash
-node-hexa audit . --compare-baseline --output json
+node-hexa audit . --history --compare-baseline
+node-hexa history .
 ```
 
 ## Documentation Links
@@ -364,10 +495,7 @@ node-hexa audit . --compare-baseline --output json
 - [ARCHITECTURE_RULES.md](ARCHITECTURE_RULES.md)
 - [example-audit-report.md](example-audit-report.md)
 - [NODE_HEXA_ENTERPRISE_PITCH.md](NODE_HEXA_ENTERPRISE_PITCH.md)
-
-## Roadmap
-
-No public roadmap document is currently maintained in this repository.
+- [CHANGELOG.md](CHANGELOG.md)
 
 ## Contributing
 

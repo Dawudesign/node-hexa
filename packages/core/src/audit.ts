@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { ArchitectureNode } from "@node-hexa/model";
-import { loadConfig } from "./config";
 import {
   loadAuditEngineConfig,
   type AuditEngineConfig,
@@ -459,23 +458,44 @@ function buildNamingFindings(nodes: ArchitectureNode[]): InternalAuditFinding[] 
   return findings;
 }
 
+const LAYER_DIR_NAMES = new Set([
+  "domain",
+  "application",
+  "infrastructure",
+  "adapter-in",
+  "adapter-out",
+]);
+
+/**
+ * Derive the actual context root directory from a node's absolute file path.
+ * e.g. /project/src/notification/domain/entities/Foo.ts → /project/src/notification
+ */
+function resolveContextRootFromFilePath(filePath: string): string | null {
+  const parts = filePath.replaceAll("\\", "/").split("/");
+  const layerIdx = parts.findIndex((p) => LAYER_DIR_NAMES.has(p.toLowerCase()));
+  if (layerIdx <= 0) return null;
+  return parts.slice(0, layerIdx).join("/");
+}
+
 function buildFolderStructureFindings(
-  projectPath: string,
+  _projectPath: string,
   nodes: ArchitectureNode[],
 ): InternalAuditFinding[] {
   const findings: InternalAuditFinding[] = [];
 
-  const coreConfig = loadConfig(projectPath);
-  const contextsRoot = path.resolve(projectPath, coreConfig.contextsDir);
-  const contexts = new Set<string>();
+  // Map context name → actual root path derived from scanned files (not config.contextsDir)
+  const contextRoots = new Map<string, string>();
 
   for (const node of nodes) {
     const context = detectContextFromPath(node.filePath);
-    if (context) contexts.add(context);
+    if (!context || contextRoots.has(context)) continue;
+    const root = resolveContextRootFromFilePath(node.filePath);
+    if (root) contextRoots.set(context, root);
   }
 
-  for (const context of [...contexts].sort((left, right) => left.localeCompare(right))) {
-    const contextRoot = path.join(contextsRoot, context);
+  for (const [context, contextRoot] of [...contextRoots.entries()].sort(([a], [b]) =>
+    a.localeCompare(b),
+  )) {
     const requiredDirectories = ["domain", "application", "infrastructure"];
 
     for (const requiredDir of requiredDirectories) {

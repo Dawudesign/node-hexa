@@ -6,9 +6,9 @@
 [![node](https://img.shields.io/node/v/@dawudesign/node-hexa-cli)](https://nodejs.org)
 [![license](https://img.shields.io/npm/l/@dawudesign/node-hexa-cli)](./LICENSE)
 
-Node-Hexa automatically enforces Hexagonal Architecture and Domain-Driven Design in TypeScript projects (NestJS, Express, Fastify…). It audits code structure, scores compliance, tracks technical debt over time, and blocks CI when architecture degrades.
+Node-Hexa automatically enforces Hexagonal Architecture and Domain-Driven Design in TypeScript projects (NestJS, Express, Fastify, Next.js…). It audits code structure, scores compliance, tracks technical debt over time, and blocks CI when architecture degrades.
 
-> **Note:** Node-Hexa only runs on projects that follow the hexagonal DDD folder layout (`src/contexts/<name>/{domain,application,infrastructure}`). Running it on a Next.js or plain Express project without this structure will exit with a clear error and a suggestion to run `node-hexa init`.
+> **Requirements:** Your project must follow the hexagonal DDD folder layout — each bounded context needs `domain/`, `application/`, and `infrastructure/` subdirectories. The context root is auto-detected from your actual file paths, so any folder structure works as long as those three layers exist (e.g. `src/notification/domain/…`). Use `node-hexa.config.json` to customize the contexts directory for existing projects.
 
 ---
 
@@ -400,6 +400,37 @@ audit:
 ```
 
 TypeScript config (`node-hexa.config.ts`) is also supported.
+
+### Existing projects with a custom folder layout
+
+If your contexts live directly under `src/` (e.g. `src/notification/domain/…`) instead of `src/contexts/`:
+
+```json
+{
+  "architecture": "hexagonal-ddd",
+  "contextsDir": "src"
+}
+```
+
+Node-Hexa auto-detects the actual context root from scanned file paths — it works even without any config as long as `domain/`, `application/`, and `infrastructure/` are present inside each context folder.
+
+To suppress rules that don't apply to your stack:
+
+```json
+{
+  "architecture": "hexagonal-ddd",
+  "contextsDir": "src",
+  "ignoredRules": ["NXH010", "NXH009"]
+}
+```
+
+| Config field | Default | Description |
+|---|---|---|
+| `architecture` | `"hexagonal-ddd"` | Architecture model |
+| `strict` | `false` | Treat warnings as errors |
+| `contextsDir` | `"src/contexts"` | Root directory that contains your bounded contexts |
+| `qualityGate.minScore` | `0` | Minimum score — same as `--fail-under` |
+| `ignoredRules` | `[]` | List of `NXH` rule IDs to skip |
 
 ---
 

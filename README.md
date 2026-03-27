@@ -1,8 +1,8 @@
 # Node Hexa
 
-Architecture governance CLI for NestJS (Hexagonal Architecture + DDD + Clean Architecture)
+Architecture governance CLI for TypeScript projects (Hexagonal Architecture + DDD + Clean Code + Performance)
 
-Node-Hexa automatically enforces Hexagonal Architecture and DDD in NestJS projects to prevent architecture drift.
+Node-Hexa automatically enforces Hexagonal Architecture and DDD in TypeScript projects — NestJS, Express, Fastify, or any TypeScript backend — to prevent architecture drift.
 
 ## Command Cheat Sheet
 
@@ -59,8 +59,7 @@ Both are complementary: ESLint helps keep code clean, Node-Hexa helps keep archi
 
 Use Node-Hexa if:
 
-- you use NestJS
-- you use DDD / Hexagonal Architecture
+- you use DDD / Hexagonal Architecture in a TypeScript project (NestJS, Express, Fastify, Next.js API routes…)
 - you want enforceable architecture rules
 - you want CI architecture checks and score thresholds
 - you want technical debt tracked per bounded context over time
@@ -71,7 +70,31 @@ Node-Hexa is usually not useful for:
 
 - very small scripts
 - throwaway prototypes
-- projects that are not organized around DDD/architecture boundaries
+- projects that are not organized around DDD/architecture boundaries (no domain/application/infrastructure layers)
+
+## Using Node-Hexa on an Existing Project
+
+If your project already has a hexagonal structure but with a custom folder layout, create `node-hexa.config.json` at the root:
+
+```json
+{
+  "architecture": "hexagonal-ddd",
+  "contextsDir": "src",
+  "strict": false
+}
+```
+
+With `"contextsDir": "src"`, Node-Hexa looks for contexts directly under `src/` (e.g. `src/notification`, `src/payment`). Node-Hexa auto-detects the actual context roots from scanned files, so even without config it will find the right structure.
+
+To skip rules that don't apply to your stack:
+
+```json
+{
+  "architecture": "hexagonal-ddd",
+  "contextsDir": "src/modules",
+  "ignoredRules": ["NXH010", "NXH009"]
+}
+```
 
 ## What Node-Hexa Does
 

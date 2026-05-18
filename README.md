@@ -568,3 +568,7 @@ This repository uses a proprietary license.
 See [LICENSE](LICENSE).
 
 Node-Hexa helps teams keep architecture clean as projects scale.
+
+---
+
+Built by [Dawudesign](https://dawudesign.fr) — Studio d'architecture de marque & developer tooling.
